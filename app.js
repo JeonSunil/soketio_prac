@@ -182,12 +182,30 @@ io.on('connection', (socket) => {
     });
 
     // 3. 채팅 메시지 처리 (이전과 동일)
-    socket.on('chat message', (msg) => {
-        if (!socket.nickname) return;
+    // socket.on('chat message', (msg) => {
+    //     if (!socket.nickname) return;
         
-        const messageWithNickname = `${socket.nickname}: ${msg}`;
-        io.emit('chat message', messageWithNickname);
-    });
+    //     const messageWithNickname = `${socket.nickname}: ${msg}`;
+    //     io.emit('chat message', messageWithNickname);
+    // });
+    socket.on('chat message', (msg) => {
+    if (!socket.nickname) return;
+    
+    // 🚨 현재 서버 시간을 가져옵니다.
+    const now = new Date();
+    
+    // 시간 정보를 포함한 메시지 객체 생성
+    const messageData = {
+        nickname: socket.nickname,
+        text: msg,
+        timestamp: now.toISOString() // ISO 형식으로 시간을 문자열로 변환하여 전송
+    };
+    
+    console.log('Message received:', messageData);
+    
+    // 모든 클라이언트에게 메시지 객체 전송
+    io.emit('chat message', messageData); 
+});
   
     // 4. 연결 끊김 처리
     socket.on('disconnect', () => {

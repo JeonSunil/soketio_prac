@@ -58,6 +58,19 @@ nicknameForm.addEventListener('submit', (e) => {
     }
 });
 
+function formatTime(timestamp) {
+    // 서버에서 받은 ISO 문자열을 Date 객체로 변환
+    const date = new Date(timestamp);
+    
+    // 시, 분, 초를 두 자리 숫자로 맞춥니다.
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    // 초도 필요하다면 추가 (주로 채팅에서는 시/분만 사용)
+    // const seconds = String(date.getSeconds()).padStart(2, '0');
+    
+    return `${hours}:${minutes}`; // 예: 11:27
+}
+
 // 2. 채팅 메시지 제출 처리 (이전과 동일)
 chatForm.addEventListener('submit', (e) => {
     e.preventDefault();
@@ -67,9 +80,27 @@ chatForm.addEventListener('submit', (e) => {
     }
 });
 
+// socket.on('chat message', (data) => {
+//     const item = document.createElement('li');
+//     item.textContent = data; 
+//     messages.appendChild(item);
+//     window.scrollTo(0, document.body.scrollHeight);
+// });
 socket.on('chat message', (data) => {
+    // 서버로부터 받은 데이터는 이제 문자열이 아닌 객체입니다.
+    // data = { nickname: "홍길동", text: "안녕하세요", timestamp: "2025-11-24T14:27:00.000Z" }
+    
+    const timeString = formatTime(data.timestamp); // 시간 포맷팅
+    
     const item = document.createElement('li');
-    item.textContent = data; 
+    
+    // 🚨 닉네임, 시간, 내용 순서로 HTML 내용을 구성합니다.
+    item.innerHTML = `
+        <span style="font-weight: bold;">${data.nickname}</span>
+        <span style="color: gray; font-size: 0.8em;">(${timeString})</span>
+        ${data.text}
+    `;
+    
     messages.appendChild(item);
     window.scrollTo(0, document.body.scrollHeight);
 });
