@@ -47,6 +47,66 @@
 //   console.log('Listening on http://localhost:3000');
 // });
 
+// ! 여기까지 기존 코드
+
+// // index.js (서버 파일)
+
+// const express = require('express');
+// const app = express();
+// const http = require('http');
+// const server = http.createServer(app);
+// const { Server } = require("socket.io");
+// const io = new Server(server); 
+
+// app.get('/', (req, res) => {
+//   res.sendFile(__dirname + '/index.html'); 
+// });
+
+// // Socket.IO 연결 처리
+// io.on('connection', (socket) => {
+//   // 'userNickname' 변수는 소켓에 닉네임이 저장되기 전의 기본값을 제공합니다.
+//   let userNickname = '익명'; 
+
+//   // 1. 클라이언트로부터 닉네임 수신 ('new user' 이벤트 리스너)
+//   socket.on('new user', (nickname) => {
+//     // 해당 소켓 객체에 닉네임 저장
+//     socket.nickname = nickname; 
+//     userNickname = nickname; // 임시 변수 업데이트
+
+//     console.log(`User connected: ${socket.nickname}`);
+//     // 모든 클라이언트에게 접속 알림 전파
+//     io.emit('user notification', `${socket.nickname}님이 접속했습니다.`); 
+//   });
+
+//   // 2. 클라이언트로부터 메시지 수신 ('chat message' 이벤트 리스너)
+//   socket.on('chat message', (msg) => {
+//     // 저장된 닉네임을 메시지 앞에 붙입니다.
+//     const messageWithNickname = `${socket.nickname || '익명'}: ${msg}`;
+    
+//     console.log('Message received: ' + messageWithNickname);
+    
+//     // 모든 클라이언트에게 닉네임을 붙여서 전파
+//     io.emit('chat message', messageWithNickname); 
+//   });
+  
+//   // 3. 연결이 끊어졌을 때
+//   socket.on('disconnect', () => {
+//     // 닉네임이 설정된 경우에만 퇴장 메시지 전송
+//     if (socket.nickname) {
+//         console.log(`User disconnected: ${socket.nickname}`);
+//         io.emit('user notification', `${socket.nickname}님이 퇴장했습니다.`);
+//     } else {
+//         console.log('User disconnected (no nickname)');
+//     }
+//   });
+// });
+
+// server.listen(3000, () => {
+//   console.log('Listening on http://localhost:3000');
+// });
+
+// ! 여기까지 2차 코드 (닉네임 설정)
+
 // index.js (서버 파일)
 
 const express = require('express');
@@ -54,49 +114,93 @@ const app = express();
 const http = require('http');
 const server = http.createServer(app);
 const { Server } = require("socket.io");
-const io = new Server(server); 
+const io = new Server(server);
 
+// 🚨 최대 접속 인원 설정
+const MAX_USERS = 2; 
+
+// 현재 닉네임을 설정하고 채팅방에 입장한 인원을 세어 모든 클라이언트에 브로드캐스트하는 함수
+function broadcastUserCount() {
+    let connectedUsers = 0;
+    
+    // 현재 연결된 모든 소켓을 순회하며 nickname 속성이 있는 소켓(채팅방 입장 사용자)만 카운트
+    io.sockets.sockets.forEach(socket => {
+        if (socket.nickname) {
+            connectedUsers++;
+        }
+    });
+    
+    // 'update user count' 이벤트로 현재 인원/최대 인원 정보 전파
+    io.emit('update user count', `${connectedUsers}/${MAX_USERS}`);
+}
+
+// HTML 파일 제공 (이전과 동일)
 app.get('/', (req, res) => {
   res.sendFile(__dirname + '/index.html'); 
 });
 
 // Socket.IO 연결 처리
 io.on('connection', (socket) => {
-  // 'userNickname' 변수는 소켓에 닉네임이 저장되기 전의 기본값을 제공합니다.
-  let userNickname = '익명'; 
-
-  // 1. 클라이언트로부터 닉네임 수신 ('new user' 이벤트 리스너)
-  socket.on('new user', (nickname) => {
-    // 해당 소켓 객체에 닉네임 저장
-    socket.nickname = nickname; 
-    userNickname = nickname; // 임시 변수 업데이트
-
-    console.log(`User connected: ${socket.nickname}`);
-    // 모든 클라이언트에게 접속 알림 전파
-    io.emit('user notification', `${socket.nickname}님이 접속했습니다.`); 
-  });
-
-  // 2. 클라이언트로부터 메시지 수신 ('chat message' 이벤트 리스너)
-  socket.on('chat message', (msg) => {
-    // 저장된 닉네임을 메시지 앞에 붙입니다.
-    const messageWithNickname = `${socket.nickname || '익명'}: ${msg}`;
+    console.log('A new socket connected.');
     
-    console.log('Message received: ' + messageWithNickname);
-    
-    // 모든 클라이언트에게 닉네임을 붙여서 전파
-    io.emit('chat message', messageWithNickname); 
-  });
+    // 1. 소켓 연결 시 현재 인원 상태 전송 (닉네임 설정 전 상태)
+    broadcastUserCount();
+
+    // 2. 닉네임 수신 및 접속 허용/거부 로직 (콜백 함수 사용)
+    socket.on('new user', (nickname, callback) => {
+        // 이미 닉네임이 설정된 사용자라면 무시
+        if (socket.nickname) {
+            return callback({ success: false, reason: "이미 등록된 사용자입니다." });
+        }
+        
+        // 현재 채팅방 입장 인원 카운트
+        let currentInChatUsers = 0;
+        io.sockets.sockets.forEach(s => {
+            if (s.nickname) {
+                currentInChatUsers++;
+            }
+        });
+        
+        // 정원 초과 검사
+        if (currentInChatUsers >= MAX_USERS) {
+            // 🚨 정원 초과 시 클라이언트에 실패 응답 전송
+            console.log(`Connection refused: ${nickname} (Capacity full)`);
+            return callback({ success: false, reason: "정원이 다 찼습니다." });
+        }
+
+        // ✅ 접속 허용 및 닉네임 설정
+        socket.nickname = nickname;
+        
+        console.log(`User accepted: ${socket.nickname}`);
+        
+        // 1. 모든 클라이언트에게 접속 알림 전파
+        io.emit('user notification', `${socket.nickname}님이 접속했습니다.`);
+        // 2. 접속자 수 업데이트 브로드캐스트
+        broadcastUserCount();
+        // 3. 클라이언트에게 성공 응답 전송
+        callback({ success: true });
+    });
+
+    // 3. 채팅 메시지 처리 (이전과 동일)
+    socket.on('chat message', (msg) => {
+        if (!socket.nickname) return;
+        
+        const messageWithNickname = `${socket.nickname}: ${msg}`;
+        io.emit('chat message', messageWithNickname);
+    });
   
-  // 3. 연결이 끊어졌을 때
-  socket.on('disconnect', () => {
-    // 닉네임이 설정된 경우에만 퇴장 메시지 전송
-    if (socket.nickname) {
-        console.log(`User disconnected: ${socket.nickname}`);
-        io.emit('user notification', `${socket.nickname}님이 퇴장했습니다.`);
-    } else {
-        console.log('User disconnected (no nickname)');
-    }
-  });
+    // 4. 연결 끊김 처리
+    socket.on('disconnect', () => {
+        if (socket.nickname) {
+            console.log(`User disconnected: ${socket.nickname}`);
+            // 1. 모든 클라이언트에게 퇴장 알림 전파
+            io.emit('user notification', `${socket.nickname}님이 퇴장했습니다.`);
+            // 2. 접속자 수 업데이트 브로드캐스트
+            broadcastUserCount();
+        } else {
+            console.log('A user disconnected (pre-registered).');
+        }
+    });
 });
 
 server.listen(3000, () => {

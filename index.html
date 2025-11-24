@@ -1,12 +1,13 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Socket.IO Chat</title>
-    <style>
-        /* CSS는 편의를 위해 생략합니다. */
-    </style>
+    <title>Socket.IO Chat (2명 정원)</title>
 </head>
 <body>
+    <div id="user-count-area" style="text-align: center; font-weight: bold; padding: 10px; border-bottom: 1px solid #ccc;">
+        접속 인원: <span id="user-count">0/2</span>
+    </div>
+    
     <div id="nickname-area">
         <form id="nickname-form">
             <input id="nickname-input" placeholder="닉네임을 입력하세요" autocomplete="off" required />
@@ -24,10 +25,11 @@
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
-        // ... (JavaScript 코드)
-        const socket = io();
+// index.html <script> 태그 내부
+const socket = io();
 
 // HTML 요소 정의
+const userCountDisplay = document.getElementById('user-count'); // 새 요소
 const nicknameArea = document.getElementById('nickname-area');
 const nicknameForm = document.getElementById('nickname-form');
 const nicknameInput = document.getElementById('nickname-input');
@@ -36,32 +38,35 @@ const chatForm = document.getElementById('chat-form');
 const chatInput = document.getElementById('chat-input');
 const messages = document.getElementById('messages');
 
-// 1. 닉네임 제출 처리
+// 1. 닉네임 제출 처리 (서버 콜백 처리)
 nicknameForm.addEventListener('submit', (e) => {
     e.preventDefault();
     const nickname = nicknameInput.value.trim();
     if (nickname) {
-        // 서버에 'new user' 이벤트로 닉네임을 전송
-        socket.emit('new user', nickname); 
-        
-        // 화면 전환: 닉네임 입력 영역 숨기기, 채팅 영역 표시
-        nicknameArea.style.display = 'none';
-        chatArea.style.display = 'block';
+        // 서버에 닉네임 전송 시 응답을 받을 콜백 함수를 함께 전달
+        socket.emit('new user', nickname, (response) => {
+            if (response.success) {
+                // ✅ 성공 시: 화면 전환
+                nicknameArea.style.display = 'none';
+                chatArea.style.display = 'block';
+            } else {
+                // 🚨 실패 시: 정원 초과 알림 및 접속 차단
+                alert(response.reason); // "정원이 다 찼습니다" 메시지 표시
+                // 화면 전환 없이 닉네임 입력 창 유지
+            }
+        });
     }
 });
 
-// 2. 채팅 메시지 제출 처리 (변경 없음)
+// 2. 채팅 메시지 제출 처리 (이전과 동일)
 chatForm.addEventListener('submit', (e) => {
     e.preventDefault();
     if (chatInput.value) {
-        // 서버로 메시지 전송
         socket.emit('chat message', chatInput.value); 
         chatInput.value = '';
     }
 });
 
-// 3. 서버로부터 메시지 수신 및 표시
-// 서버가 닉네임이 포함된 메시지를 보내므로, 받은 데이터를 그대로 표시합니다.
 socket.on('chat message', (data) => {
     const item = document.createElement('li');
     item.textContent = data; 
@@ -69,14 +74,31 @@ socket.on('chat message', (data) => {
     window.scrollTo(0, document.body.scrollHeight);
 });
 
-// 4. 시스템 알림 (접속/퇴장) 수신
 socket.on('user notification', (message) => {
     const item = document.createElement('li');
     item.textContent = `[시스템] ${message}`; 
-    item.style.color = 'gray'; // 시스템 메시지를 시각적으로 구분
+    item.style.color = 'gray';
     messages.appendChild(item);
     window.scrollTo(0, document.body.scrollHeight);
 });
+
+// 3. 접속자 수 업데이트 처리 (서버에서 전송받은 정보를 반영)
+socket.on('update user count', (countString) => {
+    userCountDisplay.textContent = countString; // 예: "0/2", "1/2", "2/2"
+});
+
+// 기본 스타일 추가 (가독성을 위해)
+document.body.style.margin = '0';
+messages.style.listStyleType = 'none';
+messages.style.padding = '0 10px 50px 10px'; /* 폼 공간 확보 */
+chatForm.style.position = 'fixed';
+chatForm.style.bottom = '0';
+chatForm.style.width = '100%';
+chatForm.style.background = '#f1f1f1';
+chatForm.style.padding = '10px';
+chatInput.style.width = 'calc(100% - 70px)';
+chatInput.style.padding = '8px';
+chatInput.style.marginRight = '5px';
     </script>
 </body>
 </html>
