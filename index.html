@@ -8,7 +8,7 @@
         접속 인원: <span id="user-count">0/2</span>
     </div>
     
-    <div id="nickname-area">
+    <div id="nickname-area" style="padding: 20px;">
         <form id="nickname-form">
             <input id="nickname-input" placeholder="닉네임을 입력하세요" autocomplete="off" required />
             <button>채팅방 입장</button>
@@ -16,120 +16,102 @@
     </div>
 
     <div id="chat-area" style="display: none;">
-        <ul id="messages"></ul>
-        <form id="chat-form">
-            <input id="chat-input" placeholder="메시지를 입력하세요" autocomplete="off" />
+        <ul id="messages" style="margin: 0; padding: 0 10px 50px 10px; list-style-type: none;"></ul>
+        <form id="chat-form" style="position: fixed; bottom: 0; width: 100%; background: #f1f1f1; padding: 10px;">
+            <input id="chat-input" placeholder="메시지를 입력하세요" autocomplete="off" style="width: calc(100% - 70px); padding: 8px; margin-right: 5px;"/>
             <button>전송</button>
         </form>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
-// index.html <script> 태그 내부
-const socket = io();
+        const socket = io();
 
-// HTML 요소 정의
-const userCountDisplay = document.getElementById('user-count'); // 새 요소
-const nicknameArea = document.getElementById('nickname-area');
-const nicknameForm = document.getElementById('nickname-form');
-const nicknameInput = document.getElementById('nickname-input');
-const chatArea = document.getElementById('chat-area');
-const chatForm = document.getElementById('chat-form');
-const chatInput = document.getElementById('chat-input');
-const messages = document.getElementById('messages');
+        // HTML 요소 정의
+        const userCountDisplay = document.getElementById('user-count');
+        const nicknameArea = document.getElementById('nickname-area');
+        const nicknameForm = document.getElementById('nickname-form');
+        const nicknameInput = document.getElementById('nickname-input');
+        const chatArea = document.getElementById('chat-area');
+        const chatForm = document.getElementById('chat-form');
+        const chatInput = document.getElementById('chat-input');
+        const messages = document.getElementById('messages');
 
-// 1. 닉네임 제출 처리 (서버 콜백 처리)
-nicknameForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const nickname = nicknameInput.value.trim();
-    if (nickname) {
-        // 서버에 닉네임 전송 시 응답을 받을 콜백 함수를 함께 전달
-        socket.emit('new user', nickname, (response) => {
-            if (response.success) {
-                // ✅ 성공 시: 화면 전환
-                nicknameArea.style.display = 'none';
-                chatArea.style.display = 'block';
-            } else {
-                // 🚨 실패 시: 정원 초과 알림 및 접속 차단
-                alert(response.reason); // "정원이 다 찼습니다" 메시지 표시
-                // 화면 전환 없이 닉네임 입력 창 유지
+        // 시간 포맷팅 함수
+        function formatTime(timestamp) {
+            const date = new Date(timestamp);
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            return `${hours}:${minutes}`;
+        }
+
+        // 1. 닉네임 제출 처리
+        nicknameForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const nickname = nicknameInput.value.trim();
+            if (nickname) {
+                socket.emit('new user', nickname, (response) => {
+                    if (response.success) {
+                        // 성공 시 화면 전환
+                        nicknameArea.style.display = 'none';
+                        chatArea.style.display = 'block';
+                        chatInput.focus();
+                    } else {
+                        // 실패 시 (정원 초과 등) 알림
+                        alert(response.reason);
+                    }
+                });
             }
         });
-    }
-});
 
-function formatTime(timestamp) {
-    // 서버에서 받은 ISO 문자열을 Date 객체로 변환
-    const date = new Date(timestamp);
-    
-    // 시, 분, 초를 두 자리 숫자로 맞춥니다.
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    // 초도 필요하다면 추가 (주로 채팅에서는 시/분만 사용)
-    // const seconds = String(date.getSeconds()).padStart(2, '0');
-    
-    return `${hours}:${minutes}`; // 예: 11:27
-}
+        // 2. 채팅 메시지 제출 처리
+        chatForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            if (chatInput.value) {
+                socket.emit('chat message', chatInput.value); 
+                chatInput.value = '';
+            }
+        });
 
-// 2. 채팅 메시지 제출 처리 (이전과 동일)
-chatForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-    if (chatInput.value) {
-        socket.emit('chat message', chatInput.value); 
-        chatInput.value = '';
-    }
-});
+        // 3. 메시지 수신 및 표시 (시간 포맷 및 챗봇 구분)
+        socket.on('chat message', (data) => {
+            const timeString = formatTime(data.timestamp);
+            const item = document.createElement('li');
+            
+            let nicknameStyle = 'font-weight: bold;';
+            
+            // 🚨 챗봇 메시지 시각적 구분
+            if (data.nickname === 'Gemini 챗봇') {
+                nicknameStyle += 'color: #3f51b5;'; // 파란색 계열
+                item.style.backgroundColor = '#e8eaf6'; 
+                item.style.borderLeft = '4px solid #3f51b5';
+            }
+            
+            item.style.padding = '5px 10px';
 
-// socket.on('chat message', (data) => {
-//     const item = document.createElement('li');
-//     item.textContent = data; 
-//     messages.appendChild(item);
-//     window.scrollTo(0, document.body.scrollHeight);
-// });
-socket.on('chat message', (data) => {
-    // 서버로부터 받은 데이터는 이제 문자열이 아닌 객체입니다.
-    // data = { nickname: "홍길동", text: "안녕하세요", timestamp: "2025-11-24T14:27:00.000Z" }
-    
-    const timeString = formatTime(data.timestamp); // 시간 포맷팅
-    
-    const item = document.createElement('li');
-    
-    // 🚨 닉네임, 시간, 내용 순서로 HTML 내용을 구성합니다.
-    item.innerHTML = `
-        <span style="font-weight: bold;">${data.nickname}</span>
-        <span style="color: gray; font-size: 0.8em;">(${timeString})</span>
-        ${data.text}
-    `;
-    
-    messages.appendChild(item);
-    window.scrollTo(0, document.body.scrollHeight);
-});
+            item.innerHTML = `
+                <span style="${nicknameStyle}">${data.nickname}</span>
+                <span style="color: gray; font-size: 0.8em;">(${timeString})</span>
+                <div>${data.text}</div>
+            `;
+            
+            messages.appendChild(item);
+            window.scrollTo(0, document.body.scrollHeight);
+        });
 
-socket.on('user notification', (message) => {
-    const item = document.createElement('li');
-    item.textContent = `[시스템] ${message}`; 
-    item.style.color = 'gray';
-    messages.appendChild(item);
-    window.scrollTo(0, document.body.scrollHeight);
-});
+        // 4. 시스템 알림 (접속/퇴장) 수신
+        socket.on('user notification', (message) => {
+            const item = document.createElement('li');
+            item.textContent = `[시스템] ${message}`; 
+            item.style.color = 'gray';
+            messages.appendChild(item);
+            window.scrollTo(0, document.body.scrollHeight);
+        });
 
-// 3. 접속자 수 업데이트 처리 (서버에서 전송받은 정보를 반영)
-socket.on('update user count', (countString) => {
-    userCountDisplay.textContent = countString; // 예: "0/2", "1/2", "2/2"
-});
-
-// 기본 스타일 추가 (가독성을 위해)
-document.body.style.margin = '0';
-messages.style.listStyleType = 'none';
-messages.style.padding = '0 10px 50px 10px'; /* 폼 공간 확보 */
-chatForm.style.position = 'fixed';
-chatForm.style.bottom = '0';
-chatForm.style.width = '100%';
-chatForm.style.background = '#f1f1f1';
-chatForm.style.padding = '10px';
-chatInput.style.width = 'calc(100% - 70px)';
-chatInput.style.padding = '8px';
-chatInput.style.marginRight = '5px';
+        // 5. 접속자 수 업데이트 처리
+        socket.on('update user count', (countString) => {
+            userCountDisplay.textContent = countString; 
+        });
     </script>
 </body>
 </html>
