@@ -52,3 +52,6 @@ socket.io를 활용한 채팅앱 만들기 연습
   - 교체 후에도 안됨.
   - 공식문서에서 ES6방식을 사용하고 있어 commonJS방식의 모듈 지정을 ES6방식으로 수정
   - 아직도 안 됨.
+  - 공식문서와 작성코드를 비교 
+    -> 작성코드는 ai.generateContent로 작성되었으나, 공식문서에는 ai에 models가 추가 된 ai.models.generateContent 로 표기되어있음. 해당 코드로 변경하고 실행할 예정
+  - 실행이 되는 것을 확인.

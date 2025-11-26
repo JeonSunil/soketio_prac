@@ -18,7 +18,7 @@
   "homepage": "https://github.com/JeonSunil/soketio_prac#readme",
   "type": "module",
   "dependencies": {
-    "@google/genai": "^1.30.0",
+    "@google/genai": "^0.15.0",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
     "socket.io": "^4.8.1"

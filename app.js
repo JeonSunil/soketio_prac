@@ -360,36 +360,36 @@
 
 // ! 여기까지 4차 코드 (Gemini 챗봇 연동)  
 
-// app.js (ES Modules 방식)
+// app.js (최종 ESM 및 모듈 로딩 우회 방식)
 
 // 1. 필수 모듈 로드 및 초기화 (ESM 방식)
-import 'dotenv/config'; // dotenv 로딩 방식
+import 'dotenv/config'; 
 import express from 'express';
 import http from 'http';
 import { Server } from "socket.io";
-import { GoogleGenAI } from "@google/genai"; // SDK 로딩 방식
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { GoogleGenAI } from "@google/genai";
+// 🚩 @google/genai 로딩 방식 수정 (모듈 로딩 충돌 우회)
+// import * as GoogleAILibrary from "@google/genai";
+// const GoogleGenAI = GoogleAILibrary.GoogleGenAI;
+
 
 const app = express();
-const server = http.createServer(app);
+// 🚩 수정 완료: http.createServer(app)으로 수정되었는지 확인
+const server = http.createServer(app); 
 const io = new Server(server);
-
 
 // 🚨 API 키 확인
 const apiKey = process.env.GEMINI_API_KEY;
-
-if(apiKey) {
-    console.log("apikey 인식 됨.");
-} else {
-    console.log("apikey 인식 안 됨.");
-}
 
 if (!apiKey) {
     console.error("FATAL ERROR: GEMINI_API_KEY가 .env 파일에 설정되지 않았습니다. 서버를 종료합니다.");
     process.exit(1); 
 }
 
-// 🚩 ai 객체 초기화 (환경 변수 자동 인식/사용)
-const ai = new GoogleGenAI({ apiKey: apiKey }); 
+// 🚩 ai 객체 초기화 
+const ai = new GoogleGenAI({ apiKey: apiKey}); 
 const GEMINI_MODEL = "gemini-2.5-flash"; 
 
 // 🚨 접속 인원 설정
@@ -404,10 +404,7 @@ function broadcastUserCount() {
     io.emit('update user count', `${connectedUsers}/${MAX_USERS}`);
 }
 
-// HTML 파일 제공
-// __dirname은 ESM에서 기본적으로 제공되지 않으므로, path 모듈을 사용합니다.
-import path from 'path';
-import { fileURLToPath } from 'url';
+// HTML 파일 제공 (ESM 경로 설정)
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -458,8 +455,8 @@ io.on('connection', (socket) => {
                 botResponseText = "질문 내용을 입력해 주세요. (예: @챗봇 오늘 날씨)";
             } else {
                 try {
-                    // 🚩 핵심: ai.generateContent를 사용하여 모델을 직접 호출 (가장 안정적)
-                    const response = await ai.generateContent({ 
+                    // 🚩 핵심: ai.generateContent를 사용하여 모델을 직접 호출
+                    const response = await ai.models.generateContent({ 
                         model: GEMINI_MODEL,
                         // 쿼리는 객체 형태로 전달해야 함
                         contents: [{ role: "user", parts: [{ text: query }] }]
