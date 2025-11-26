@@ -377,13 +377,19 @@ const io = new Server(server);
 // 🚨 API 키 확인
 const apiKey = process.env.GEMINI_API_KEY;
 
+if(apiKey) {
+    console.log("apikey 인식 됨.");
+} else {
+    console.log("apikey 인식 안 됨.");
+}
+
 if (!apiKey) {
     console.error("FATAL ERROR: GEMINI_API_KEY가 .env 파일에 설정되지 않았습니다. 서버를 종료합니다.");
     process.exit(1); 
 }
 
 // 🚩 ai 객체 초기화 (환경 변수 자동 인식/사용)
-const ai = new GoogleGenAI({}); 
+const ai = new GoogleGenAI({ apiKey: apiKey }); 
 const GEMINI_MODEL = "gemini-2.5-flash"; 
 
 // 🚨 접속 인원 설정
