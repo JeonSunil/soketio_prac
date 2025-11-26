@@ -230,38 +230,183 @@
 // app.js
 
 // 1. 필수 모듈 로드 및 초기화
-require('dotenv').config(); 
-const express = require('express');
+// require('dotenv').config(); 
+// const express = require('express');
+// const app = express();
+// const http = require('http');
+// const server = http.createServer(app);
+// const { Server } = require("socket.io");
+// const io = new Server(server);
+
+// // Gemini SDK는 환경 변수(GEMINI_API_KEY)를 자동으로 인식하도록 초기화
+// const { GoogleGenAI } = require('@google/genai');
+// const ai = new GoogleGenAI({}); 
+
+// // 모델 이름 상수 정의
+// const GEMINI_MODEL = "gemini-2.5-flash";
+
+// // 🚨 접속 인원 설정
+// const MAX_USERS = 2; 
+
+// // 현재 채팅방 입장 인원을 계산하여 모든 클라이언트에게 전파
+// function broadcastUserCount() {
+//     let connectedUsers = 0;
+//     io.sockets.sockets.forEach(socket => {
+//         if (socket.nickname) {
+//             connectedUsers++;
+//         }
+//     });
+//     io.emit('update user count', `${connectedUsers}/${MAX_USERS}`);
+// }
+
+// // HTML 파일 제공
+// app.get('/', (req, res) => {
+//   res.sendFile(__dirname + '/index.html'); 
+// });
+
+// // Socket.IO 연결 처리
+// io.on('connection', (socket) => {
+//     console.log('A new socket connected.');
+    
+//     broadcastUserCount();
+
+//     // 2. 닉네임 수신 및 접속 허용/거부 로직
+//     socket.on('new user', (nickname, callback) => {
+//         if (socket.nickname) {
+//             return callback({ success: false, reason: "이미 등록된 사용자입니다." });
+//         }
+        
+//         let currentInChatUsers = 0;
+//         io.sockets.sockets.forEach(s => {
+//             if (s.nickname) { currentInChatUsers++; }
+//         });
+        
+//         // 정원 초과 검사
+//         if (currentInChatUsers >= MAX_USERS) {
+//             console.log(`Connection refused: ${nickname} (Capacity full)`);
+//             return callback({ success: false, reason: "정원이 다 찼습니다." });
+//         }
+
+//         // 접속 허용 및 닉네임 설정
+//         socket.nickname = nickname;
+//         console.log(`User accepted: ${socket.nickname}`);
+        
+//         io.emit('user notification', `${socket.nickname}님이 접속했습니다.`);
+//         broadcastUserCount();
+//         callback({ success: true });
+//     });
+
+//     // 3. 채팅 메시지 및 챗봇 처리
+//     socket.on('chat message', async (msg) => {
+//         if (!socket.nickname) return;
+        
+//         // 일반 채팅 메시지 처리 (시간 포함)
+//         const now = new Date();
+//         const messageData = {
+//             nickname: socket.nickname,
+//             text: msg,
+//             timestamp: now.toISOString()
+//         };
+//         io.emit('chat message', messageData); 
+        
+        
+//         // 🚨 챗봇 호출 감지 및 Gemini API 사용
+//         if (msg.startsWith('@챗봇 ')) {
+//             const query = msg.substring(5).trim();
+//             console.log(`[Gemini Query] from ${socket.nickname}: ${query}`);
+            
+//             let botResponseText;
+//             try {
+//                 // Gemini API 호출 (ai.generateContent 사용)
+//                 const response = await ai.generateContent({ 
+//                     model: GEMINI_MODEL,
+//                     contents: [
+//                         { role: "user", parts: [{ text: query }] }
+//                     ]
+//                 });
+
+//                 botResponseText = response.text || "죄송합니다. 답변을 생성하지 못했습니다.";
+                
+//             } catch (error) {
+//                  botResponseText = "죄송합니다. 챗봇 서비스 호출에 문제가 발생했습니다.";
+//                  console.error("Gemini API Error:", error);
+//             }
+
+//             // 챗봇 메시지 데이터 전송
+//             const botMessageData = {
+//                 nickname: 'Gemini 챗봇',
+//                 text: botResponseText,
+//                 timestamp: new Date().toISOString()
+//             };
+//             io.emit('chat message', botMessageData);
+//         }
+//     });
+  
+//     // 4. 연결 끊김 처리
+//     socket.on('disconnect', () => {
+//         if (socket.nickname) {
+//             console.log(`User disconnected: ${socket.nickname}`);
+//             io.emit('user notification', `${socket.nickname}님이 퇴장했습니다.`);
+//             broadcastUserCount();
+//         } else {
+//             console.log('A user disconnected (pre-registered).');
+//         }
+//     });
+// });
+
+// server.listen(3000, () => {
+//   console.log('Listening on http://localhost:3000');
+// });
+
+// ! 여기까지 4차 코드 (Gemini 챗봇 연동)  
+
+// app.js (ES Modules 방식)
+
+// 1. 필수 모듈 로드 및 초기화 (ESM 방식)
+import 'dotenv/config'; // dotenv 로딩 방식
+import express from 'express';
+import http from 'http';
+import { Server } from "socket.io";
+import { GoogleGenAI } from "@google/genai"; // SDK 로딩 방식
+
 const app = express();
-const http = require('http');
 const server = http.createServer(app);
-const { Server } = require("socket.io");
 const io = new Server(server);
 
-// Gemini SDK는 환경 변수(GEMINI_API_KEY)를 자동으로 인식하도록 초기화
-const { GoogleGenAI } = require('@google/genai');
-const ai = new GoogleGenAI({}); 
 
-// 모델 이름 상수 정의
-const GEMINI_MODEL = "gemini-2.5-flash";
+// 🚨 API 키 확인
+const apiKey = process.env.GEMINI_API_KEY;
+
+if (!apiKey) {
+    console.error("FATAL ERROR: GEMINI_API_KEY가 .env 파일에 설정되지 않았습니다. 서버를 종료합니다.");
+    process.exit(1); 
+}
+
+// 🚩 ai 객체 초기화 (환경 변수 자동 인식/사용)
+const ai = new GoogleGenAI({}); 
+const GEMINI_MODEL = "gemini-2.5-flash"; 
 
 // 🚨 접속 인원 설정
 const MAX_USERS = 2; 
 
-// 현재 채팅방 입장 인원을 계산하여 모든 클라이언트에게 전파
+// 현재 채팅방 입장 인원을 계산하여 전파
 function broadcastUserCount() {
     let connectedUsers = 0;
     io.sockets.sockets.forEach(socket => {
-        if (socket.nickname) {
-            connectedUsers++;
-        }
+        if (socket.nickname) { connectedUsers++; }
     });
     io.emit('update user count', `${connectedUsers}/${MAX_USERS}`);
 }
 
 // HTML 파일 제공
+// __dirname은 ESM에서 기본적으로 제공되지 않으므로, path 모듈을 사용합니다.
+import path from 'path';
+import { fileURLToPath } from 'url';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 app.get('/', (req, res) => {
-  res.sendFile(__dirname + '/index.html'); 
+  res.sendFile(path.join(__dirname, 'index.html')); 
 });
 
 // Socket.IO 연결 처리
@@ -270,74 +415,60 @@ io.on('connection', (socket) => {
     
     broadcastUserCount();
 
-    // 2. 닉네임 수신 및 접속 허용/거부 로직
+    // 2. 닉네임 수신 및 정원 초과 확인 로직
     socket.on('new user', (nickname, callback) => {
-        if (socket.nickname) {
-            return callback({ success: false, reason: "이미 등록된 사용자입니다." });
-        }
+        if (socket.nickname) return callback({ success: false, reason: "이미 등록된 사용자입니다." });
         
         let currentInChatUsers = 0;
-        io.sockets.sockets.forEach(s => {
-            if (s.nickname) { currentInChatUsers++; }
-        });
+        io.sockets.sockets.forEach(s => { if (s.nickname) { currentInChatUsers++; } });
         
-        // 정원 초과 검사
         if (currentInChatUsers >= MAX_USERS) {
-            console.log(`Connection refused: ${nickname} (Capacity full)`);
             return callback({ success: false, reason: "정원이 다 찼습니다." });
         }
 
-        // 접속 허용 및 닉네임 설정
         socket.nickname = nickname;
-        console.log(`User accepted: ${socket.nickname}`);
-        
         io.emit('user notification', `${socket.nickname}님이 접속했습니다.`);
         broadcastUserCount();
         callback({ success: true });
     });
 
-    // 3. 채팅 메시지 및 챗봇 처리
+    // 3. 채팅 메시지 및 챗봇 처리 로직
     socket.on('chat message', async (msg) => {
         if (!socket.nickname) return;
         
         // 일반 채팅 메시지 처리 (시간 포함)
         const now = new Date();
-        const messageData = {
-            nickname: socket.nickname,
-            text: msg,
-            timestamp: now.toISOString()
-        };
+        const messageData = { nickname: socket.nickname, text: msg, timestamp: now.toISOString() };
         io.emit('chat message', messageData); 
         
         
         // 🚨 챗봇 호출 감지 및 Gemini API 사용
         if (msg.startsWith('@챗봇 ')) {
             const query = msg.substring(5).trim();
-            console.log(`[Gemini Query] from ${socket.nickname}: ${query}`);
-            
             let botResponseText;
-            try {
-                // Gemini API 호출 (ai.generateContent 사용)
-                const response = await ai.generateContent({ 
-                    model: GEMINI_MODEL,
-                    contents: [
-                        { role: "user", parts: [{ text: query }] }
-                    ]
-                });
-
-                botResponseText = response.text || "죄송합니다. 답변을 생성하지 못했습니다.";
-                
-            } catch (error) {
-                 botResponseText = "죄송합니다. 챗봇 서비스 호출에 문제가 발생했습니다.";
-                 console.error("Gemini API Error:", error);
+            
+            // 쿼리 내용 없음 방지
+            if (query.length === 0) {
+                botResponseText = "질문 내용을 입력해 주세요. (예: @챗봇 오늘 날씨)";
+            } else {
+                try {
+                    // 🚩 핵심: ai.generateContent를 사용하여 모델을 직접 호출 (가장 안정적)
+                    const response = await ai.generateContent({ 
+                        model: GEMINI_MODEL,
+                        // 쿼리는 객체 형태로 전달해야 함
+                        contents: [{ role: "user", parts: [{ text: query }] }]
+                    });
+                    
+                    // 응답 텍스트 추출
+                    botResponseText = response.text || "답변을 생성하지 못했습니다.";
+                } catch (error) {
+                     botResponseText = "죄송합니다. 챗봇 서비스 호출에 문제가 발생했습니다.";
+                     console.error("Gemini API Error:", error);
+                }
             }
 
             // 챗봇 메시지 데이터 전송
-            const botMessageData = {
-                nickname: 'Gemini 챗봇',
-                text: botResponseText,
-                timestamp: new Date().toISOString()
-            };
+            const botMessageData = { nickname: 'Gemini 챗봇', text: botResponseText, timestamp: new Date().toISOString() };
             io.emit('chat message', botMessageData);
         }
     });
@@ -345,11 +476,8 @@ io.on('connection', (socket) => {
     // 4. 연결 끊김 처리
     socket.on('disconnect', () => {
         if (socket.nickname) {
-            console.log(`User disconnected: ${socket.nickname}`);
             io.emit('user notification', `${socket.nickname}님이 퇴장했습니다.`);
             broadcastUserCount();
-        } else {
-            console.log('A user disconnected (pre-registered).');
         }
     });
 });

@@ -1,24 +1,88 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Socket.IO Chat (2명 정원)</title>
+    <title>Gemini 챗봇 채팅 (2명 정원)</title>
+    <style>
+        /* 💡 CSS 스타일 시트 블록 추가 */
+        body { 
+            margin: 0; 
+            padding-bottom: 70px; /* 고정 하단 폼 공간 확보 */
+            font-family: sans-serif; 
+            background-color: #f7f7f7;
+        }
+        #messages { 
+            margin: 0; 
+            padding: 10px; 
+            list-style-type: none; 
+        }
+        #messages li { 
+            margin-bottom: 10px; 
+            padding: 8px 12px;
+            border-radius: 8px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            line-height: 1.4;
+        }
+        .chat-message-time {
+            color: gray; 
+            font-size: 0.75em;
+            margin-left: 5px;
+        }
+        /* 챗봇 메시지 스타일 정의 */
+        .chatbot-message {
+            background-color: #e8eaf6; /* 연한 파랑 배경 */
+            border-left: 4px solid #3f51b5; /* 진한 파랑 막대 */
+        }
+        .chatbot-nickname {
+            color: #3f51b5; /* 닉네임 색상 */
+            font-weight: bold;
+        }
+        .user-nickname {
+            font-weight: bold;
+            color: #333;
+        }
+        #chat-form {
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            background: #ffffff;
+            padding: 10px;
+            box-sizing: border-box;
+            border-top: 1px solid #ddd;
+            display: flex;
+        }
+        #chat-input {
+            flex-grow: 1;
+            padding: 10px;
+            margin-right: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        #chat-form button {
+            padding: 10px 15px;
+            border: none;
+            background-color: #007bff;
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+    </style>
 </head>
 <body>
-    <div id="user-count-area" style="text-align: center; font-weight: bold; padding: 10px; border-bottom: 1px solid #ccc;">
+    <div id="user-count-area" style="text-align: center; font-weight: bold; padding: 10px; border-bottom: 1px solid #ccc; background-color: #fff;">
         접속 인원: <span id="user-count">0/2</span>
     </div>
     
-    <div id="nickname-area" style="padding: 20px;">
+    <div id="nickname-area" style="padding: 20px; text-align: center;">
         <form id="nickname-form">
-            <input id="nickname-input" placeholder="닉네임을 입력하세요" autocomplete="off" required />
-            <button>채팅방 입장</button>
+            <input id="nickname-input" placeholder="닉네임을 입력하세요" autocomplete="off" required style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;"/>
+            <button style="padding: 8px 15px;">채팅방 입장</button>
         </form>
     </div>
 
     <div id="chat-area" style="display: none;">
-        <ul id="messages" style="margin: 0; padding: 0 10px 50px 10px; list-style-type: none;"></ul>
-        <form id="chat-form" style="position: fixed; bottom: 0; width: 100%; background: #f1f1f1; padding: 10px;">
-            <input id="chat-input" placeholder="메시지를 입력하세요" autocomplete="off" style="width: calc(100% - 70px); padding: 8px; margin-right: 5px;"/>
+        <ul id="messages"></ul>
+        <form id="chat-form">
+            <input id="chat-input" placeholder="메시지를 입력하세요 (@챗봇 내용)" autocomplete="off"/>
             <button>전송</button>
         </form>
     </div>
@@ -27,7 +91,7 @@
     <script>
         const socket = io();
 
-        // HTML 요소 정의
+        // HTML 요소 정의 (이전과 동일)
         const userCountDisplay = document.getElementById('user-count');
         const nicknameArea = document.getElementById('nickname-area');
         const nicknameForm = document.getElementById('nickname-form');
@@ -37,7 +101,6 @@
         const chatInput = document.getElementById('chat-input');
         const messages = document.getElementById('messages');
 
-        // 시간 포맷팅 함수
         function formatTime(timestamp) {
             const date = new Date(timestamp);
             const hours = String(date.getHours()).padStart(2, '0');
@@ -45,26 +108,24 @@
             return `${hours}:${minutes}`;
         }
 
-        // 1. 닉네임 제출 처리
+        // 1. 닉네임 제출 처리 (이전과 동일)
         nicknameForm.addEventListener('submit', (e) => {
             e.preventDefault();
             const nickname = nicknameInput.value.trim();
             if (nickname) {
                 socket.emit('new user', nickname, (response) => {
                     if (response.success) {
-                        // 성공 시 화면 전환
                         nicknameArea.style.display = 'none';
                         chatArea.style.display = 'block';
                         chatInput.focus();
                     } else {
-                        // 실패 시 (정원 초과 등) 알림
                         alert(response.reason);
                     }
                 });
             }
         });
 
-        // 2. 채팅 메시지 제출 처리
+        // 2. 채팅 메시지 제출 처리 (이전과 동일)
         chatForm.addEventListener('submit', (e) => {
             e.preventDefault();
             if (chatInput.value) {
@@ -73,25 +134,22 @@
             }
         });
 
-        // 3. 메시지 수신 및 표시 (시간 포맷 및 챗봇 구분)
+        // 3. 메시지 수신 및 표시 (스타일 클래스 적용)
         socket.on('chat message', (data) => {
             const timeString = formatTime(data.timestamp);
             const item = document.createElement('li');
             
-            let nicknameStyle = 'font-weight: bold;';
+            let nicknameClass = 'user-nickname';
             
-            // 🚨 챗봇 메시지 시각적 구분
+            // 🚨 챗봇 메시지 시각적 구분 (클래스 기반)
             if (data.nickname === 'Gemini 챗봇') {
-                nicknameStyle += 'color: #3f51b5;'; // 파란색 계열
-                item.style.backgroundColor = '#e8eaf6'; 
-                item.style.borderLeft = '4px solid #3f51b5';
+                item.classList.add('chatbot-message');
+                nicknameClass = 'chatbot-nickname';
             }
             
-            item.style.padding = '5px 10px';
-
             item.innerHTML = `
-                <span style="${nicknameStyle}">${data.nickname}</span>
-                <span style="color: gray; font-size: 0.8em;">(${timeString})</span>
+                <span class="${nicknameClass}">${data.nickname}</span>
+                <span class="chat-message-time">(${timeString})</span>
                 <div>${data.text}</div>
             `;
             
@@ -99,16 +157,17 @@
             window.scrollTo(0, document.body.scrollHeight);
         });
 
-        // 4. 시스템 알림 (접속/퇴장) 수신
+        // 4. 시스템 알림 (접속/퇴장) 수신 (이전과 동일)
         socket.on('user notification', (message) => {
             const item = document.createElement('li');
             item.textContent = `[시스템] ${message}`; 
             item.style.color = 'gray';
+            item.style.textAlign = 'center';
             messages.appendChild(item);
             window.scrollTo(0, document.body.scrollHeight);
         });
 
-        // 5. 접속자 수 업데이트 처리
+        // 5. 접속자 수 업데이트 처리 (이전과 동일)
         socket.on('update user count', (countString) => {
             userCountDisplay.textContent = countString; 
         });
