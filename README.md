@@ -54,4 +54,7 @@ socket.io를 활용한 채팅앱 만들기 연습
   - 아직도 안 됨.
   - 공식문서와 작성코드를 비교 
     -> 작성코드는 ai.generateContent로 작성되었으나, 공식문서에는 ai에 models가 추가 된 ai.models.generateContent 로 표기되어있음. 해당 코드로 변경하고 실행할 예정
+  - genai라이브러리가 googleCloud 인증정보를 찾을 수 없어서 문제가 발생 함을 확인
+    -> 인증정보라는 내용을 토대로 apikey가 들어가지 않아서 인가? 라는 생각을 해봄.
+    const ai = new GoogleGenAI({}); 이 변수를 const ai = new GoogleGenAI({ apiKey: apiKey }); 로 변경 
   - 실행이 되는 것을 확인.
