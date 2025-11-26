@@ -41,3 +41,10 @@ socket.io를 활용한 채팅앱 만들기 연습
   - npm install google/genai 를 통해 google/genai 모듈 설치
   - 모듈 설치는 됐는데, apikey를 dotenv를 활용해서 .env파일에서 불러오려고 하는데, 잘 불러와 지지 않는듯
   - 서버를 키고, 확인을 해보니 계속해서 챗봇 오류 발생. 
+
+  ### 11/26
+
+1. google Genai 를 연동시키는데 계속해서 문제가 생김.
+  - 우선 응답요청을 받아야할 듯.
+  - node_modules와 package-lock.json 파일을 삭제하고, 새로 최신버전의 라이브러리를 새로 설치
+  - nodejs와 genai가 버전호환이 문제일 수 있다는 가능성 파악 -> nvm을 설치해서 관리 해보는 방향으로 진행 예정
