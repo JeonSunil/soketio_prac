@@ -447,7 +447,7 @@ io.on('connection', (socket) => {
         
         // 🚨 챗봇 호출 감지 및 Gemini API 사용
         if (msg.startsWith('@챗봇 ')) {
-            const query = msg.substring(5).trim();
+            const query = msg.substring(4).trim();
             let botResponseText;
             
             // 쿼리 내용 없음 방지
