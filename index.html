@@ -177,6 +177,7 @@ chatForm.addEventListener('submit', (e) => {
             
             // 💡 애니메이션 시작!
             startWaitingAnimation(); 
+            chatInput.disabled = true; 
         }
 
         window.scrollTo(0, document.body.scrollHeight);
@@ -244,6 +245,7 @@ socket.on('chat message', (data) => {
         // 대기 메시지 제거
         messages.removeChild(chatbotWaitingMessage);
         chatbotWaitingMessage = null; 
+        chatInput.disabled = false;
     }
 
     // B. 사용자 본인이 보낸 메시지(에코)는 이미 화면에 표시되었으므로 건너뜁니다.
