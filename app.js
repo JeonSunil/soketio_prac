@@ -360,9 +360,139 @@
 
 // ! 여기까지 4차 코드 (Gemini 챗봇 연동)  
 
-// app.js (최종 ESM 및 모듈 로딩 우회 방식)
+// // app.js (최종 ESM 및 모듈 로딩 우회 방식)
 
-// 1. 필수 모듈 로드 및 초기화 (ESM 방식)
+// // 1. 필수 모듈 로드 및 초기화 (ESM 방식)
+// import 'dotenv/config'; 
+// import express from 'express';
+// import http from 'http';
+// import { Server } from "socket.io";
+// import path from 'path';
+// import { fileURLToPath } from 'url';
+// import { GoogleGenAI } from "@google/genai";
+// // 🚩 @google/genai 로딩 방식 수정 (모듈 로딩 충돌 우회)
+// // import * as GoogleAILibrary from "@google/genai";
+// // const GoogleGenAI = GoogleAILibrary.GoogleGenAI;
+
+
+// const app = express();
+// // 🚩 수정 완료: http.createServer(app)으로 수정되었는지 확인
+// const server = http.createServer(app); 
+// const io = new Server(server);
+
+// // 🚨 API 키 확인
+// const apiKey = process.env.GEMINI_API_KEY;
+
+// if (!apiKey) {
+//     console.error("FATAL ERROR: GEMINI_API_KEY가 .env 파일에 설정되지 않았습니다. 서버를 종료합니다.");
+//     process.exit(1); 
+// }
+
+// // 🚩 ai 객체 초기화 
+// const ai = new GoogleGenAI({ apiKey: apiKey}); 
+// const GEMINI_MODEL = "gemini-2.5-flash"; 
+
+// // 🚨 접속 인원 설정
+// const MAX_USERS = 2; 
+
+// // 현재 채팅방 입장 인원을 계산하여 전파
+// function broadcastUserCount() {
+//     let connectedUsers = 0;
+//     io.sockets.sockets.forEach(socket => {
+//         if (socket.nickname) { connectedUsers++; }
+//     });
+//     io.emit('update user count', `${connectedUsers}/${MAX_USERS}`);
+// }
+
+// // HTML 파일 제공 (ESM 경로 설정)
+// const __filename = fileURLToPath(import.meta.url);
+// const __dirname = path.dirname(__filename);
+
+// app.get('/', (req, res) => {
+//   res.sendFile(path.join(__dirname, 'index.html')); 
+// });
+
+// // Socket.IO 연결 처리
+// io.on('connection', (socket) => {
+//     console.log('A new socket connected.');
+    
+//     broadcastUserCount();
+
+//     // 2. 닉네임 수신 및 정원 초과 확인 로직
+//     socket.on('new user', (nickname, callback) => {
+//         if (socket.nickname) return callback({ success: false, reason: "이미 등록된 사용자입니다." });
+        
+//         let currentInChatUsers = 0;
+//         io.sockets.sockets.forEach(s => { if (s.nickname) { currentInChatUsers++; } });
+        
+//         if (currentInChatUsers >= MAX_USERS) {
+//             return callback({ success: false, reason: "정원이 다 찼습니다." });
+//         }
+
+//         socket.nickname = nickname;
+//         io.emit('user notification', `${socket.nickname}님이 접속했습니다.`);
+//         broadcastUserCount();
+//         callback({ success: true });
+//     });
+
+//     // 3. 채팅 메시지 및 챗봇 처리 로직
+//     socket.on('chat message', async (msg) => {
+//         if (!socket.nickname) return;
+        
+//         // 일반 채팅 메시지 처리 (시간 포함)
+//         const now = new Date();
+//         const messageData = { nickname: socket.nickname, text: msg, timestamp: now.toISOString() };
+//         io.emit('chat message', messageData); 
+        
+        
+//         // 🚨 챗봇 호출 감지 및 Gemini API 사용
+//         if (msg.startsWith('@챗봇 ')) {
+//             const query = msg.substring(4).trim();
+//             let botResponseText;
+            
+//             // 쿼리 내용 없음 방지
+//             if (query.length === 0) {
+//                 botResponseText = "질문 내용을 입력해 주세요. (예: @챗봇 오늘 날씨)";
+//             } else {
+//                 try {
+//                     // 🚩 핵심: ai.generateContent를 사용하여 모델을 직접 호출
+//                     const response = await ai.models.generateContent({ 
+//                         model: GEMINI_MODEL,
+//                         // 쿼리는 객체 형태로 전달해야 함
+//                         contents: [{ role: "user", parts: [{ text: query }] }]
+//                     });
+                    
+//                     // 응답 텍스트 추출
+//                     botResponseText = response.text || "답변을 생성하지 못했습니다.";
+//                 } catch (error) {
+//                      botResponseText = "죄송합니다. 챗봇 서비스 호출에 문제가 발생했습니다.";
+//                      console.error("Gemini API Error:", error);
+//                 }
+//             }
+
+//             // 챗봇 메시지 데이터 전송
+//             const botMessageData = { nickname: 'Gemini 챗봇', text: botResponseText, timestamp: new Date().toISOString() };
+//             io.emit('chat message', botMessageData);
+//         }
+//     });
+  
+//     // 4. 연결 끊김 처리
+//     socket.on('disconnect', () => {
+//         if (socket.nickname) {
+//             io.emit('user notification', `${socket.nickname}님이 퇴장했습니다.`);
+//             broadcastUserCount();
+//         }
+//     });
+// });
+
+// server.listen(3000, () => {
+//   console.log('Listening on http://localhost:3000');
+// });
+
+// ! 여기까지 최종 5차 코드 (ESM 방식 및 모듈 로딩 우회)
+
+// app.js
+
 import 'dotenv/config'; 
 import express from 'express';
 import http from 'http';
@@ -370,44 +500,37 @@ import { Server } from "socket.io";
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI } from "@google/genai";
-// 🚩 @google/genai 로딩 방식 수정 (모듈 로딩 충돌 우회)
-// import * as GoogleAILibrary from "@google/genai";
-// const GoogleGenAI = GoogleAILibrary.GoogleGenAI;
-
 
 const app = express();
-// 🚩 수정 완료: http.createServer(app)으로 수정되었는지 확인
 const server = http.createServer(app); 
 const io = new Server(server);
 
-// 🚨 API 키 확인
+// API 키 확인 및 초기화 (생략)
 const apiKey = process.env.GEMINI_API_KEY;
-
 if (!apiKey) {
     console.error("FATAL ERROR: GEMINI_API_KEY가 .env 파일에 설정되지 않았습니다. 서버를 종료합니다.");
     process.exit(1); 
 }
-
-// 🚩 ai 객체 초기화 
 const ai = new GoogleGenAI({ apiKey: apiKey}); 
 const GEMINI_MODEL = "gemini-2.5-flash"; 
-
-// 🚨 접속 인원 설정
 const MAX_USERS = 2; 
 
-// 현재 채팅방 입장 인원을 계산하여 전파
+// 🚩 챗봇 응답 무시 플래그 (접속자 0명 시 사용)
+// 이 플래그는 챗봇 호출 시작 시에만 'false'로 재설정되어야 합니다.
+let shouldIgnoreChatbotResponse = false; 
+
 function broadcastUserCount() {
     let connectedUsers = 0;
     io.sockets.sockets.forEach(socket => {
         if (socket.nickname) { connectedUsers++; }
     });
     io.emit('update user count', `${connectedUsers}/${MAX_USERS}`);
+    return connectedUsers; 
 }
 
-// HTML 파일 제공 (ESM 경로 설정)
+// HTML 파일 제공 (생략)
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html')); 
 });
@@ -415,15 +538,13 @@ app.get('/', (req, res) => {
 // Socket.IO 연결 처리
 io.on('connection', (socket) => {
     console.log('A new socket connected.');
-    
     broadcastUserCount();
 
     // 2. 닉네임 수신 및 정원 초과 확인 로직
     socket.on('new user', (nickname, callback) => {
         if (socket.nickname) return callback({ success: false, reason: "이미 등록된 사용자입니다." });
         
-        let currentInChatUsers = 0;
-        io.sockets.sockets.forEach(s => { if (s.nickname) { currentInChatUsers++; } });
+        let currentInChatUsers = broadcastUserCount();
         
         if (currentInChatUsers >= MAX_USERS) {
             return callback({ success: false, reason: "정원이 다 찼습니다." });
@@ -433,45 +554,62 @@ io.on('connection', (socket) => {
         io.emit('user notification', `${socket.nickname}님이 접속했습니다.`);
         broadcastUserCount();
         callback({ success: true });
+        
+        // ❌ 이전 코드: 새로운 사용자 접속 시 플래그를 초기화하는 코드를 제거했습니다.
+        // shouldIgnoreChatbotResponse = false; 
     });
 
     // 3. 채팅 메시지 및 챗봇 처리 로직
     socket.on('chat message', async (msg) => {
         if (!socket.nickname) return;
         
-        // 일반 채팅 메시지 처리 (시간 포함)
-        const now = new Date();
-        const messageData = { nickname: socket.nickname, text: msg, timestamp: now.toISOString() };
+        const now = Date.now();
+        const messageData = { nickname: socket.nickname, text: msg, timestamp: now };
         io.emit('chat message', messageData); 
         
         
-        // 🚨 챗봇 호출 감지 및 Gemini API 사용
         if (msg.startsWith('@챗봇 ')) {
             const query = msg.substring(4).trim();
             let botResponseText;
             
-            // 쿼리 내용 없음 방지
+            // 🚀 핵심 수정: 챗봇 호출 시작 시에만 플래그를 'false'로 재설정합니다.
+            shouldIgnoreChatbotResponse = false; 
+            
             if (query.length === 0) {
                 botResponseText = "질문 내용을 입력해 주세요. (예: @챗봇 오늘 날씨)";
             } else {
                 try {
-                    // 🚩 핵심: ai.generateContent를 사용하여 모델을 직접 호출
                     const response = await ai.models.generateContent({ 
                         model: GEMINI_MODEL,
-                        // 쿼리는 객체 형태로 전달해야 함
                         contents: [{ role: "user", parts: [{ text: query }] }]
                     });
                     
-                    // 응답 텍스트 추출
                     botResponseText = response.text || "답변을 생성하지 못했습니다.";
+                    
+                    // 🚀 Markdown 기호 제거 로직
+                    if (botResponseText) {
+                        botResponseText = botResponseText.replace(/\*\*/g, ''); 
+                        botResponseText = botResponseText.replace(/\*/g, '');
+                    }
+
                 } catch (error) {
                      botResponseText = "죄송합니다. 챗봇 서비스 호출에 문제가 발생했습니다.";
                      console.error("Gemini API Error:", error);
                 }
             }
 
+            // 🚨 응답 전송 직전 플래그 확인 (접속자 0명일 때 응답 전송 차단)
+            if (shouldIgnoreChatbotResponse) {
+                console.log("모든 사용자가 퇴장하여 챗봇 응답 전송을 취소합니다.");
+                return; // 응답 전송 중단
+            }
+
             // 챗봇 메시지 데이터 전송
-            const botMessageData = { nickname: 'Gemini 챗봇', text: botResponseText, timestamp: new Date().toISOString() };
+            const botMessageData = { 
+                nickname: 'Gemini 챗봇', 
+                text: botResponseText, 
+                timestamp: Date.now() 
+            };
             io.emit('chat message', botMessageData);
         }
     });
@@ -480,7 +618,17 @@ io.on('connection', (socket) => {
     socket.on('disconnect', () => {
         if (socket.nickname) {
             io.emit('user notification', `${socket.nickname}님이 퇴장했습니다.`);
-            broadcastUserCount();
+            
+            // 접속 인원수 카운트 전 닉네임 삭제 (정확한 인원 계산)
+            delete socket.nickname; 
+            
+            const currentInChatUsers = broadcastUserCount();
+            
+            // 🚨 접속 인원이 0이면 플래그 설정
+            if (currentInChatUsers === 0) {
+                console.log("모든 사용자가 퇴장했습니다. 챗봇 응답 무시 플래그 설정.");
+                shouldIgnoreChatbotResponse = true;
+            }
         }
     });
 });
