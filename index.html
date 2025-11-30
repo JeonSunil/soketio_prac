@@ -110,7 +110,17 @@
             return `${hours}:${minutes}`;
         }
 
-        // --- 새로운 함수 추가: 응답 대기 애니메이션 시작 ---
+        // 🚀 새로운 함수 추가: 시스템 메시지를 화면에 추가하는 도우미 함수
+        function addSystemMessage(message) {
+            const item = document.createElement('li');
+            item.textContent = `[시스템] ${message}`; 
+            item.style.color = 'gray';
+            item.style.textAlign = 'center';
+            messages.appendChild(item);
+            window.scrollTo(0, document.body.scrollHeight);
+        }
+
+        // --- 응답 대기 애니메이션 함수 (생략되지 않고 그대로 유지) ---
         function startWaitingAnimation() {
             if (waitingAnimationInterval) {
                 clearInterval(waitingAnimationInterval);
@@ -127,16 +137,14 @@
         }
         // ---
 
-        // 🚀 0. 소켓 연결 시 처리 (핵심 수정: 화면 초기화)
+        // 0. 소켓 연결 시 처리 (화면 초기화)
         socket.on('connect', () => {
             console.log('Socket connected.');
-            
-            // 💡 접속 여부와 관계없이 이전 채팅 내용을 담고 있는 DOM을 초기화
             messages.innerHTML = '';
         });
 
 
-        // 1. 닉네임 제출 처리
+        // 1. 닉네임 제출 처리 (수정 부분)
         nicknameForm.addEventListener('submit', (e) => {
             e.preventDefault();
             const nickname = nicknameInput.value.trim();
@@ -146,8 +154,11 @@
                         nicknameArea.style.display = 'none';
                         chatArea.style.display = 'block';
                         chatInput.focus();
-                        // 🚩 닉네임 등록 성공 시에도 혹시 모를 잔여물 제거 (안전 장치)
-                        messages.innerHTML = ''; 
+                        messages.innerHTML = '';
+                        
+                        // 🚀 핵심 수정: 닉네임 등록 성공 시 본인의 접속 알림을 스스로 표시
+                        addSystemMessage(`${nickname}님이 접속했습니다.`); 
+
                     } else {
                         alert(response.reason);
                     }
@@ -218,7 +229,6 @@
             }
 
             // B. 사용자 본인이 보낸 메시지(에코)는 이미 화면에 표시되었으므로 건너뜁니다.
-            // 닉네임이 등록된 경우에만 이 로직이 작동해야 합니다.
             if (data.nickname === userNickname) {
                 return; 
             }
@@ -244,14 +254,10 @@
             window.scrollTo(0, document.body.scrollHeight);
         });
 
-        // 4. 시스템 알림 (접속/퇴장) 수신
+        // 4. 시스템 알림 (접속/퇴장) 수신 (addSystemMessage 사용)
         socket.on('user notification', (message) => {
-            const item = document.createElement('li');
-            item.textContent = `[시스템] ${message}`; 
-            item.style.color = 'gray';
-            item.style.textAlign = 'center';
-            messages.appendChild(item);
-            window.scrollTo(0, document.body.scrollHeight);
+            // 🚀 addSystemMessage 함수를 사용하여 알림을 표시
+            addSystemMessage(message); 
         });
 
         // 5. 접속자 수 업데이트 처리
