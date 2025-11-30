@@ -91,7 +91,7 @@
     <script>
         const socket = io();
 
-        // HTML 요소 정의 (이전과 동일)
+        // HTML 요소 정의
         const userCountDisplay = document.getElementById('user-count');
         const nicknameArea = document.getElementById('nickname-area');
         const nicknameForm = document.getElementById('nickname-form');
@@ -101,7 +101,7 @@
         const chatInput = document.getElementById('chat-input');
         const messages = document.getElementById('messages');
         let chatbotWaitingMessage = null; 
-        let waitingAnimationInterval = null; // setInterval ID 저장
+        let waitingAnimationInterval = null; 
 
         function formatTime(timestamp) {
             const date = new Date(timestamp);
@@ -110,7 +110,33 @@
             return `${hours}:${minutes}`;
         }
 
-        // 1. 닉네임 제출 처리 (이전과 동일)
+        // --- 새로운 함수 추가: 응답 대기 애니메이션 시작 ---
+        function startWaitingAnimation() {
+            if (waitingAnimationInterval) {
+                clearInterval(waitingAnimationInterval);
+            }
+            const waitingDiv = document.getElementById('waiting-text');
+            if (!waitingDiv) return;
+
+            let dotCount = 1;
+            waitingAnimationInterval = setInterval(() => {
+                dotCount = (dotCount % 3) + 1; 
+                const dots = '.'.repeat(dotCount);
+                waitingDiv.innerHTML = `응답 대기중${dots}`;
+            }, 300);
+        }
+        // ---
+
+        // 🚀 0. 소켓 연결 시 처리 (핵심 수정: 화면 초기화)
+        socket.on('connect', () => {
+            console.log('Socket connected.');
+            
+            // 💡 접속 여부와 관계없이 이전 채팅 내용을 담고 있는 DOM을 초기화
+            messages.innerHTML = '';
+        });
+
+
+        // 1. 닉네임 제출 처리
         nicknameForm.addEventListener('submit', (e) => {
             e.preventDefault();
             const nickname = nicknameInput.value.trim();
@@ -120,6 +146,8 @@
                         nicknameArea.style.display = 'none';
                         chatArea.style.display = 'block';
                         chatInput.focus();
+                        // 🚩 닉네임 등록 성공 시에도 혹시 모를 잔여물 제거 (안전 장치)
+                        messages.innerHTML = ''; 
                     } else {
                         alert(response.reason);
                     }
@@ -127,154 +155,96 @@
             }
         });
 
-        // 2. 채팅 메시지 제출 처리 (이전과 동일)
-        // chatForm.addEventListener('submit', (e) => {
-        //     e.preventDefault();
-        //     if (chatInput.value) {
-        //         socket.emit('chat message', chatInput.value); 
-        //         chatInput.value = '';
-        //     }
-        // });
-// 2. 채팅 메시지 제출 처리 수정 (애니메이션 시작 로직 추가)
-chatForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const message = chatInput.value.trim();
-    const now = Date.now();
-    
-    if (message) {
-        socket.emit('chat message', message); 
+        // 2. 채팅 메시지 제출 처리 수정 (애니메이션 시작 로직 추가)
+        chatForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const message = chatInput.value.trim();
+            const now = Date.now();
+            
+            if (message) {
+                socket.emit('chat message', message); 
 
-        // 1. 사용자 본인의 메시지를 즉시 화면에 표시
-        const userNickname = nicknameInput.value; 
-        const timeString = formatTime(now);
-        
-        const userItem = document.createElement('li');
-        userItem.innerHTML = `
-            <span class="user-nickname">${userNickname}</span>
-            <span class="chat-message-time">(${timeString})</span>
-            <div>${message}</div>
-        `;
-        messages.appendChild(userItem);
-        
-        
-        // 2. 챗봇 호출이 있다면 응답 대기 메시지를 바로 뒤에 추가
-        if (message.startsWith('@챗봇')) {
-            const waitingItem = document.createElement('li');
-            
-            waitingItem.classList.add('chatbot-message'); 
-            
-            // 💡 초기 문구는 '응답 대기중.' (점 1개)
-            waitingItem.innerHTML = `
-                <span class="chatbot-nickname">Gemini 챗봇</span>
-                <span class="chat-message-time">(${timeString})</span>
-                <div id="waiting-text">응답 대기중.</div> 
+                // 1. 사용자 본인의 메시지를 즉시 화면에 표시
+                const userNickname = nicknameInput.value; 
+                const timeString = formatTime(now);
                 
+                const userItem = document.createElement('li');
+                userItem.innerHTML = `
+                    <span class="user-nickname">${userNickname}</span>
+                    <span class="chat-message-time">(${timeString})</span>
+                    <div>${message}</div>
                 `;
+                messages.appendChild(userItem);
+                
+                
+                // 2. 챗봇 호출이 있다면 응답 대기 메시지를 바로 뒤에 추가
+                if (message.startsWith('@챗봇')) {
+                    const waitingItem = document.createElement('li');
+                    waitingItem.classList.add('chatbot-message'); 
+                    
+                    waitingItem.innerHTML = `
+                        <span class="chatbot-nickname">Gemini 챗봇</span>
+                        <span class="chat-message-time">(${timeString})</span>
+                        <div id="waiting-text">응답 대기중.</div> 
+                        `;
+                    
+                    messages.appendChild(waitingItem);
+                    
+                    chatbotWaitingMessage = waitingItem;
+                    
+                    startWaitingAnimation(); 
+                    chatInput.disabled = true; 
+                }
+
+                window.scrollTo(0, document.body.scrollHeight);
+                chatInput.value = '';
+            }
+        });
+
+        // 3. 메시지 수신 및 표시 수정 (애니메이션 중지 로직 추가)
+        socket.on('chat message', (data) => {
+            const userNickname = nicknameInput.value; 
+
+            // A. 챗봇 응답이 도착하면 대기 메시지 제거 및 애니메이션 중지
+            if (data.nickname === 'Gemini 챗봇' && chatbotWaitingMessage) {
+                if (waitingAnimationInterval) {
+                    clearInterval(waitingAnimationInterval);
+                    waitingAnimationInterval = null;
+                }
+
+                messages.removeChild(chatbotWaitingMessage);
+                chatbotWaitingMessage = null; 
+                chatInput.disabled = false;
+            }
+
+            // B. 사용자 본인이 보낸 메시지(에코)는 이미 화면에 표시되었으므로 건너뜁니다.
+            // 닉네임이 등록된 경우에만 이 로직이 작동해야 합니다.
+            if (data.nickname === userNickname) {
+                return; 
+            }
             
-            messages.appendChild(waitingItem);
+            // C. 챗봇 응답이나 다른 사용자 메시지만 처리
+            const timeString = formatTime(data.timestamp);
+            const item = document.createElement('li');
             
-            chatbotWaitingMessage = waitingItem;
+            let nicknameClass = 'user-nickname';
             
-            // 💡 애니메이션 시작!
-            startWaitingAnimation(); 
-            chatInput.disabled = true; 
-        }
-
-        window.scrollTo(0, document.body.scrollHeight);
-        chatInput.value = '';
-    }
-});
-
-// --- 새로운 함수 추가: 응답 대기 애니메이션 시작 ---
-function startWaitingAnimation() {
-    // 이미 애니메이션이 실행 중이면 중지합니다.
-    if (waitingAnimationInterval) {
-        clearInterval(waitingAnimationInterval);
-    }
-
-    const waitingDiv = document.getElementById('waiting-text');
-    if (!waitingDiv) return; // 요소가 없으면 실행하지 않습니다.
-
-    let dotCount = 1;
-
-    waitingAnimationInterval = setInterval(() => {
-        // 1, 2, 3 순환
-        dotCount = (dotCount % 3) + 1; 
-        
-        const dots = '.'.repeat(dotCount);
-        waitingDiv.innerHTML = `응답 대기중${dots}`;
-    }, 300); // 0.5초(500ms) 간격으로 업데이트
-}
-// ---
-
-        // 3. 메시지 수신 및 표시 (스타일 클래스 적용)
-        // socket.on('chat message', (data) => {
-        //     const timeString = formatTime(data.timestamp);
-        //     const item = document.createElement('li');
+            if (data.nickname === 'Gemini 챗봇') {
+                item.classList.add('chatbot-message');
+                nicknameClass = 'chatbot-nickname';
+            }
             
-        //     let nicknameClass = 'user-nickname';
+            item.innerHTML = `
+                <span class="${nicknameClass}">${data.nickname}</span>
+                <span class="chat-message-time">(${timeString})</span>
+                <div>${data.text}</div>
+            `;
             
-        //     // 🚨 챗봇 메시지 시각적 구분 (클래스 기반)
-        //     if (data.nickname === 'Gemini 챗봇') {
-        //         item.classList.add('chatbot-message');
-        //         nicknameClass = 'chatbot-nickname';
-        //     }
-            
-        //     item.innerHTML = `
-        //         <span class="${nicknameClass}">${data.nickname}</span>
-        //         <span class="chat-message-time">(${timeString})</span>
-        //         <div>${data.text}</div>
-        //     `;
-            
-        //     messages.appendChild(item);
-        //     window.scrollTo(0, document.body.scrollHeight);
-        // });
+            messages.appendChild(item);
+            window.scrollTo(0, document.body.scrollHeight);
+        });
 
-// 3. 메시지 수신 및 표시 수정 (애니메이션 중지 로직 추가)
-socket.on('chat message', (data) => {
-    const userNickname = nicknameInput.value; 
-
-    // 💡 A. 챗봇 응답이 도착하면 대기 메시지 제거 및 애니메이션 중지
-    if (data.nickname === 'Gemini 챗봇' && chatbotWaitingMessage) {
-        // 애니메이션 중지
-        if (waitingAnimationInterval) {
-            clearInterval(waitingAnimationInterval);
-            waitingAnimationInterval = null;
-        }
-
-        // 대기 메시지 제거
-        messages.removeChild(chatbotWaitingMessage);
-        chatbotWaitingMessage = null; 
-        chatInput.disabled = false;
-    }
-
-    // B. 사용자 본인이 보낸 메시지(에코)는 이미 화면에 표시되었으므로 건너뜁니다.
-    if (data.nickname === userNickname) {
-        return; 
-    }
-    
-    // C. 챗봇 응답이나 다른 사용자 메시지만 처리
-    const timeString = formatTime(data.timestamp);
-    const item = document.createElement('li');
-    
-    let nicknameClass = 'user-nickname';
-    
-    if (data.nickname === 'Gemini 챗봇') {
-        item.classList.add('chatbot-message');
-        nicknameClass = 'chatbot-nickname';
-    }
-    
-    item.innerHTML = `
-        <span class="${nicknameClass}">${data.nickname}</span>
-        <span class="chat-message-time">(${timeString})</span>
-        <div>${data.text}</div>
-    `;
-    
-    messages.appendChild(item);
-    window.scrollTo(0, document.body.scrollHeight);
-});
-
-        // 4. 시스템 알림 (접속/퇴장) 수신 (이전과 동일)
+        // 4. 시스템 알림 (접속/퇴장) 수신
         socket.on('user notification', (message) => {
             const item = document.createElement('li');
             item.textContent = `[시스템] ${message}`; 
@@ -284,7 +254,7 @@ socket.on('chat message', (data) => {
             window.scrollTo(0, document.body.scrollHeight);
         });
 
-        // 5. 접속자 수 업데이트 처리 (이전과 동일)
+        // 5. 접속자 수 업데이트 처리
         socket.on('update user count', (countString) => {
             userCountDisplay.textContent = countString; 
         });
