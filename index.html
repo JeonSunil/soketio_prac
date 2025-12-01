@@ -1,14 +1,22 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Gemini 챗봇 채팅 (2명 정원)</title>
+    <title>Gemini 멀티 채팅방</title>
     <style>
-        /* 💡 CSS 스타일 시트 블록 추가 */
         body { 
             margin: 0; 
-            padding-bottom: 70px; /* 고정 하단 폼 공간 확보 */
+            padding-bottom: 70px; 
             font-family: sans-serif; 
             background-color: #f7f7f7;
+        }
+        header {
+            background-color: #3f51b5;
+            color: white;
+            padding: 15px;
+            text-align: center;
+        }
+        #main-content {
+            padding: 20px;
         }
         #messages { 
             margin: 0; 
@@ -27,13 +35,12 @@
             font-size: 0.75em;
             margin-left: 5px;
         }
-        /* 챗봇 메시지 스타일 정의 */
         .chatbot-message {
-            background-color: #e8eaf6; /* 연한 파랑 배경 */
-            border-left: 4px solid #3f51b5; /* 진한 파랑 막대 */
+            background-color: #e8eaf6; 
+            border-left: 4px solid #3f51b5; 
         }
         .chatbot-nickname {
-            color: #3f51b5; /* 닉네임 색상 */
+            color: #3f51b5; 
             font-weight: bold;
         }
         .user-nickname {
@@ -57,7 +64,7 @@
             border: 1px solid #ccc;
             border-radius: 4px;
         }
-        #chat-form button {
+        #chat-form button, .btn {
             padding: 10px 15px;
             border: none;
             background-color: #007bff;
@@ -65,20 +72,81 @@
             border-radius: 4px;
             cursor: pointer;
         }
+        
+        /* 모달 스타일 */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 400px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .close:hover, .close:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        /* 방 목록 스타일 */
+        .room-item {
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            background-color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .room-item:hover {
+            background-color: #eee;
+        }
+        .room-info {
+            font-weight: bold;
+        }
+        .room-status {
+            font-size: 0.9em;
+            color: #555;
+        }
     </style>
 </head>
 <body>
-    <div id="user-count-area" style="text-align: center; font-weight: bold; padding: 10px; border-bottom: 1px solid #ccc; background-color: #fff;">
-        접속 인원: <span id="user-count">0/2</span>
+    <header>
+        <div id="room-header">
+            <span id="room-title">Gemini 멀티 채팅방 로비</span> 
+            <span id="user-count-area" style="float: right; font-size: 0.9em;"></span>
+        </div>
+    </header>
+
+    <div id="main-content">
+        <button id="create-room-btn" class="btn">방 만들기</button>
+        <h3>현재 활성화된 채팅방</h3>
+        <div id="room-list">
+            <p>현재 활성화된 방이 없습니다.</p>
+        </div>
     </div>
     
-    <div id="nickname-area" style="padding: 20px; text-align: center;">
-        <form id="nickname-form">
-            <input id="nickname-input" placeholder="닉네임을 입력하세요" autocomplete="off" required style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;"/>
-            <button style="padding: 8px 15px;">채팅방 입장</button>
-        </form>
-    </div>
-
     <div id="chat-area" style="display: none;">
         <ul id="messages"></ul>
         <form id="chat-form">
@@ -87,42 +155,91 @@
         </form>
     </div>
 
+    <div id="create-room-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h4>방 만들기</h4>
+            <form id="create-room-form">
+                <p><input id="room-name-input" placeholder="방 이름" required style="width: 100%; padding: 8px; margin-bottom: 10px;"/></p>
+                <p><label>정원 (2~4명):</label>
+                <input id="max-users-input" type="number" min="2" max="4" value="2" required style="width: 50px; padding: 8px; margin-bottom: 10px;"/></p>
+                <p><label><input type="checkbox" id="use-password-checkbox"/> 비밀번호 사용</label></p>
+                <p><input id="room-password-input" type="password" placeholder="비밀번호" disabled style="width: 100%; padding: 8px; margin-bottom: 10px;"/></p>
+                <button type="submit" class="btn" style="width: 100%;">방 생성 후 입장</button>
+            </form>
+        </div>
+    </div>
+    
+    <div id="join-room-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h4 id="join-room-title">방 입장</h4>
+            <form id="join-room-form">
+                <input id="current-joining-room" type="hidden" />
+                <p><input id="join-nickname-input" placeholder="사용할 닉네임" required style="width: 100%; padding: 8px; margin-bottom: 10px;"/></p>
+                <p id="join-password-area" style="display: none;">
+                    <input id="join-password-input" type="password" placeholder="비밀번호" style="width: 100%; padding: 8px; margin-bottom: 10px;"/>
+                </p>
+                <button type="submit" class="btn" style="width: 100%;">입장하기</button>
+            </form>
+        </div>
+    </div>
+
+
     <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
 
+        // 💡 전역 상태 변수
+        let currentRoomName = null;
+        let myNickname = null;
+        
         // HTML 요소 정의
-        const userCountDisplay = document.getElementById('user-count');
-        const nicknameArea = document.getElementById('nickname-area');
-        const nicknameForm = document.getElementById('nickname-form');
-        const nicknameInput = document.getElementById('nickname-input');
+        const roomTitle = document.getElementById('room-title');
+        const userCountArea = document.getElementById('user-count-area');
+        const mainContent = document.getElementById('main-content');
+        const roomListDiv = document.getElementById('room-list');
+        const createRoomBtn = document.getElementById('create-room-btn');
         const chatArea = document.getElementById('chat-area');
         const chatForm = document.getElementById('chat-form');
         const chatInput = document.getElementById('chat-input');
         const messages = document.getElementById('messages');
+        
+        // 모달 요소 정의
+        const createRoomModal = document.getElementById('create-room-modal');
+        const joinRoomModal = document.getElementById('join-room-modal');
+        const joinRoomTitle = document.getElementById('join-room-title');
+        const createRoomForm = document.getElementById('create-room-form');
+        const joinRoomForm = document.getElementById('join-room-form');
+        const usePasswordCheckbox = document.getElementById('use-password-checkbox');
+        const roomPasswordInput = document.getElementById('room-password-input');
+        const joinPasswordArea = document.getElementById('join-password-area');
+        const joinPasswordInput = document.getElementById('join-password-input');
+        const joinNicknameInput = document.getElementById('join-nickname-input');
+        const currentJoiningRoom = document.getElementById('current-joining-room');
+        
         let chatbotWaitingMessage = null; 
         let waitingAnimationInterval = null; 
 
+        // --- 헬퍼 함수 ---
         function formatTime(timestamp) {
             const date = new Date(timestamp);
             const hours = String(date.getHours()).padStart(2, '0');
             const minutes = String(date.getMinutes()).padStart(2, '0');
             return `${hours}:${minutes}`;
         }
-
-        // 🚀 새로운 함수 추가: 시스템 메시지를 화면에 추가하는 도우미 함수
-        function addSystemMessage(message) {
+        
+        function addSystemMessage(data) {
             const item = document.createElement('li');
-            item.textContent = `[시스템] ${message}`; 
+            item.textContent = `[시스템] ${data.text}`; 
             item.style.color = 'gray';
             item.style.textAlign = 'center';
             messages.appendChild(item);
             window.scrollTo(0, document.body.scrollHeight);
         }
-
-        // --- 응답 대기 애니메이션 함수 (생략되지 않고 그대로 유지) ---
+        
         function startWaitingAnimation() {
-            if (waitingAnimationInterval) {
+             if (waitingAnimationInterval) {
                 clearInterval(waitingAnimationInterval);
             }
             const waitingDiv = document.getElementById('waiting-text');
@@ -135,53 +252,134 @@
                 waitingDiv.innerHTML = `응답 대기중${dots}`;
             }, 300);
         }
-        // ---
-
-        // 0. 소켓 연결 시 처리 (화면 초기화)
-        socket.on('connect', () => {
-            console.log('Socket connected.');
-            messages.innerHTML = '';
-        });
-
-
-        // 1. 닉네임 제출 처리 (수정 부분)
-        nicknameForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            const nickname = nicknameInput.value.trim();
-            if (nickname) {
-                socket.emit('new user', nickname, (response) => {
-                    if (response.success) {
-                        nicknameArea.style.display = 'none';
-                        chatArea.style.display = 'block';
-                        chatInput.focus();
-                        messages.innerHTML = '';
-                        
-                        // 🚀 핵심 수정: 닉네임 등록 성공 시 본인의 접속 알림을 스스로 표시
-                        addSystemMessage(`${nickname}님이 접속했습니다.`); 
-
-                    } else {
-                        alert(response.reason);
-                    }
-                });
+        
+        function hideAllModals() {
+            createRoomModal.style.display = 'none';
+            joinRoomModal.style.display = 'none';
+        }
+        
+        // 방 목록에서 특정 방을 클릭했을 때 호출되는 함수
+        function attemptJoinRoom(roomName, hasPassword) {
+            joinRoomTitle.textContent = `방 입장: ${roomName}`;
+            currentJoiningRoom.value = roomName;
+            
+            // 비밀번호 입력창 표시/숨김
+            if (hasPassword) {
+                joinPasswordArea.style.display = 'block';
+                joinPasswordInput.required = true;
+            } else {
+                joinPasswordArea.style.display = 'none';
+                joinPasswordInput.required = false;
+                joinPasswordInput.value = ''; // 비밀번호 초기화
             }
-        });
+            
+            // 모달 열기
+            joinRoomModal.style.display = 'block';
+            joinNicknameInput.focus();
+        }
 
-        // 2. 채팅 메시지 제출 처리 수정 (애니메이션 시작 로직 추가)
+        // --- 이벤트 리스너 ---
+        
+        // 1. 방 만들기 버튼 클릭
+        createRoomBtn.addEventListener('click', () => {
+            hideAllModals();
+            createRoomModal.style.display = 'block';
+            document.getElementById('room-name-input').focus();
+        });
+        
+        // 1-1. 비밀번호 체크박스 토글
+        usePasswordCheckbox.addEventListener('change', (e) => {
+            roomPasswordInput.disabled = !e.target.checked;
+            roomPasswordInput.required = e.target.checked;
+            if (!e.target.checked) roomPasswordInput.value = '';
+        });
+        
+        // 1-2. 방 만들기 폼 제출 (서버로 'create room' 전송)
+        createRoomForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            
+            const roomName = document.getElementById('room-name-input').value.trim();
+            const maxUsers = parseInt(document.getElementById('max-users-input').value, 10);
+            const usePassword = usePasswordCheckbox.checked;
+            const password = usePassword ? roomPasswordInput.value.trim() : null;
+            
+            // 방 생성 시에는 닉네임 입력이 따로 없으므로, 기본값(로비에서 입력)으로 설정합니다.
+            // 💡 여기서는 닉네임 입력을 JoinRoomModal에서 통일하도록 로직을 수정했습니다.
+            //    -> 방 생성 후 바로 닉네임 모달을 열도록 변경 (새로운 구조에 맞게)
+            
+            // 닉네임을 로비에서 입력하는 것이 아니라, 방 생성 후 바로 닉네임 입력 모달을 띄우고,
+            // 닉네임 입력 후 서버의 'create room' 또는 'join room' 로직을 실행하도록 변경합니다.
+            
+            hideAllModals();
+            attemptJoinRoom(roomName, usePassword); // 방을 생성하지만, 실제 서버 통신은 join-room-form에서 수행
+            
+        });
+        
+        // 2. 방 입장 폼 제출 (서버로 'join room' 또는 'create room' 전송)
+        joinRoomForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            
+            const roomName = currentJoiningRoom.value;
+            const nickname = joinNicknameInput.value.trim();
+            const password = joinPasswordInput.value.value || null;
+            
+            // 💡 서버에 방이 이미 존재하는지 확인하는 로직이 필요합니다.
+            //    (클라이언트에서는 방 목록을 보고 입장하므로 'join room'으로 통일)
+            
+            // --- 클라이언트 측에서의 방 생성/입장 통일 로직 ---
+            const isCreating = !!document.getElementById('room-name-input').value.trim() && !document.getElementById('current-joining-room').value; // 이 플래그는 복잡하니, 서버 응답에 따라 처리하도록 변경합니다.
+            
+            // 서버에 'join room' 요청 (서버에서 방 유무 및 정원, 비밀번호를 체크)
+            socket.emit('join room', { roomName, password, nickname }, (response) => {
+                if (response.success) {
+                    currentRoomName = response.roomName;
+                    myNickname = nickname;
+                    
+                    hideAllModals();
+                    mainContent.style.display = 'none';
+                    chatArea.style.display = 'block';
+                    messages.innerHTML = '';
+                    
+                    roomTitle.textContent = `채팅방: ${currentRoomName}`;
+                    
+                    // 닉네임 등록 성공 시 본인의 접속 알림을 스스로 표시
+                    // 서버에서 전송하는 시스템 메시지와 중복되므로, 서버 메시지를 기다립니다.
+                    // addSystemMessage({ text: `${myNickname}님이 접속했습니다.` });
+                    
+                    chatInput.focus();
+                } else {
+                    alert(response.reason);
+                }
+            });
+            
+        });
+        
+        // 모달 닫기 버튼 처리
+        document.querySelectorAll('.close').forEach(span => {
+            span.onclick = () => hideAllModals();
+        });
+        
+        window.onclick = (event) => {
+            if (event.target === createRoomModal || event.target === joinRoomModal) {
+                hideAllModals();
+            }
+        };
+
+        // 3. 채팅 메시지 제출 처리
         chatForm.addEventListener('submit', (e) => {
             e.preventDefault();
             const message = chatInput.value.trim();
             const now = Date.now();
             
-            if (message) {
+            if (message && currentRoomName && myNickname) {
                 socket.emit('chat message', message); 
 
                 // 1. 사용자 본인의 메시지를 즉시 화면에 표시
-                const userNickname = nicknameInput.value; 
                 const timeString = formatTime(now);
                 
                 const userItem = document.createElement('li');
                 userItem.innerHTML = `
-                    <span class="user-nickname">${userNickname}</span>
+                    <span class="user-nickname">${myNickname}</span>
                     <span class="chat-message-time">(${timeString})</span>
                     <div>${message}</div>
                 `;
@@ -212,11 +410,9 @@
             }
         });
 
-        // 3. 메시지 수신 및 표시 수정 (애니메이션 중지 로직 추가)
+        // 4. 메시지 수신 및 표시
         socket.on('chat message', (data) => {
-            const userNickname = nicknameInput.value; 
-
-            // A. 챗봇 응답이 도착하면 대기 메시지 제거 및 애니메이션 중지
+            // A. 챗봇 응답 도착 시 대기 메시지 제거 및 애니메이션 중지
             if (data.nickname === 'Gemini 챗봇' && chatbotWaitingMessage) {
                 if (waitingAnimationInterval) {
                     clearInterval(waitingAnimationInterval);
@@ -227,13 +423,19 @@
                 chatbotWaitingMessage = null; 
                 chatInput.disabled = false;
             }
+            
+            // B. 시스템 메시지 처리
+            if (data.nickname === '[시스템]') {
+                addSystemMessage(data);
+                return;
+            }
 
-            // B. 사용자 본인이 보낸 메시지(에코)는 이미 화면에 표시되었으므로 건너뜁니다.
-            if (data.nickname === userNickname) {
+            // C. 사용자 본인이 보낸 메시지(에코)는 이미 화면에 표시되었으므로 건너뜁니다.
+            if (data.nickname === myNickname) {
                 return; 
             }
             
-            // C. 챗봇 응답이나 다른 사용자 메시지만 처리
+            // D. 챗봇 응답이나 다른 사용자 메시지 처리
             const timeString = formatTime(data.timestamp);
             const item = document.createElement('li');
             
@@ -254,15 +456,39 @@
             window.scrollTo(0, document.body.scrollHeight);
         });
 
-        // 4. 시스템 알림 (접속/퇴장) 수신 (addSystemMessage 사용)
-        socket.on('user notification', (message) => {
-            // 🚀 addSystemMessage 함수를 사용하여 알림을 표시
-            addSystemMessage(message); 
+        // 5. 방 목록 업데이트
+        socket.on('update room list', (roomList) => {
+            roomListDiv.innerHTML = ''; // 목록 초기화
+
+            if (roomList.length === 0) {
+                roomListDiv.innerHTML = '<p>현재 활성화된 방이 없습니다.</p>';
+                return;
+            }
+
+            roomList.forEach(room => {
+                const item = document.createElement('div');
+                item.className = 'room-item';
+                item.setAttribute('data-room-name', room.name);
+                item.onclick = () => attemptJoinRoom(room.name, room.hasPassword); // 클릭 이벤트 설정
+                
+                const lockIcon = room.hasPassword ? ' 🔒' : '';
+                
+                item.innerHTML = `
+                    <div class="room-info">${room.name}${lockIcon}</div>
+                    <div class="room-status">${room.current}/${room.max}명</div>
+                `;
+                roomListDiv.appendChild(item);
+            });
         });
 
-        // 5. 접속자 수 업데이트 처리
-        socket.on('update user count', (countString) => {
-            userCountDisplay.textContent = countString; 
+        // 6. 현재 방 접속자 수 업데이트
+        socket.on('update room user count', (countString) => {
+            userCountArea.textContent = `접속 인원: ${countString}`; 
+        });
+        
+        // 초기 접속 시 방 목록 요청 (connect 이벤트 핸들러는 단순화)
+        socket.on('connect', () => {
+            console.log('Socket connected. Requesting room list...');
         });
     </script>
 </body>
