@@ -165,22 +165,33 @@
                 <input id="max-users-input" type="number" min="2" max="4" value="2" required style="width: 50px; padding: 8px; margin-bottom: 10px;"/></p>
                 <p><label><input type="checkbox" id="use-password-checkbox"/> 비밀번호 사용</label></p>
                 <p><input id="room-password-input" type="password" placeholder="비밀번호" disabled style="width: 100%; padding: 8px; margin-bottom: 10px;"/></p>
-                <button type="submit" class="btn" style="width: 100%;">방 생성 후 입장</button>
+                <button type="submit" class="btn" style="width: 100%;">방 생성</button>
             </form>
         </div>
     </div>
     
-    <div id="join-room-modal" class="modal">
+    <div id="password-check-modal" class="modal">
         <div class="modal-content">
             <span class="close">&times;</span>
-            <h4 id="join-room-title">방 입장</h4>
-            <form id="join-room-form">
-                <input id="current-joining-room" type="hidden" />
-                <p><input id="join-nickname-input" placeholder="사용할 닉네임" required style="width: 100%; padding: 8px; margin-bottom: 10px;"/></p>
-                <p id="join-password-area" style="display: none;">
-                    <input id="join-password-input" type="password" placeholder="비밀번호" style="width: 100%; padding: 8px; margin-bottom: 10px;"/>
+            <h4 id="check-room-title">방 비밀번호 확인</h4>
+            <form id="password-check-form">
+                <input id="check-room-name" type="hidden" />
+                <p id="check-password-area">
+                    <input id="check-password-input" type="password" placeholder="비밀번호 입력" required style="width: 100%; padding: 8px; margin-bottom: 10px;"/>
                 </p>
-                <button type="submit" class="btn" style="width: 100%;">입장하기</button>
+                <button type="submit" class="btn" style="width: 100%;">확인</button>
+            </form>
+        </div>
+    </div>
+    
+    <div id="nickname-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h4 id="nickname-room-title"></h4>
+            <form id="nickname-form">
+                <input id="final-room-name" type="hidden" />
+                <p><input id="final-nickname-input" placeholder="사용할 닉네임" required style="width: 100%; padding: 8px; margin-bottom: 10px;"/></p>
+                <button type="submit" class="btn" style="width: 100%;">채팅방 진입</button>
             </form>
         </div>
     </div>
@@ -207,16 +218,24 @@
         
         // 모달 요소 정의
         const createRoomModal = document.getElementById('create-room-modal');
-        const joinRoomModal = document.getElementById('join-room-modal');
-        const joinRoomTitle = document.getElementById('join-room-title');
+        const passwordCheckModal = document.getElementById('password-check-modal');
+        const nicknameModal = document.getElementById('nickname-modal');
+        
         const createRoomForm = document.getElementById('create-room-form');
-        const joinRoomForm = document.getElementById('join-room-form');
+        const passwordCheckForm = document.getElementById('password-check-form');
+        const nicknameForm = document.getElementById('nickname-form');
+        
         const usePasswordCheckbox = document.getElementById('use-password-checkbox');
         const roomPasswordInput = document.getElementById('room-password-input');
-        const joinPasswordArea = document.getElementById('join-password-area');
-        const joinPasswordInput = document.getElementById('join-password-input');
-        const joinNicknameInput = document.getElementById('join-nickname-input');
-        const currentJoiningRoom = document.getElementById('current-joining-room');
+
+        const checkRoomTitle = document.getElementById('check-room-title');
+        const checkRoomName = document.getElementById('check-room-name');
+        const checkPasswordArea = document.getElementById('check-password-area');
+        const checkPasswordInput = document.getElementById('check-password-input');
+        
+        const nicknameRoomTitle = document.getElementById('nickname-room-title');
+        const finalRoomName = document.getElementById('final-room-name');
+        const finalNicknameInput = document.getElementById('final-nickname-input');
         
         let chatbotWaitingMessage = null; 
         let waitingAnimationInterval = null; 
@@ -231,7 +250,7 @@
         
         function addSystemMessage(data) {
             const item = document.createElement('li');
-            item.textContent = `[시스템] ${data.text}`; 
+            item.textContent = `${data.nickname} ${data.text}`; 
             item.style.color = 'gray';
             item.style.textAlign = 'center';
             messages.appendChild(item);
@@ -255,31 +274,36 @@
         
         function hideAllModals() {
             createRoomModal.style.display = 'none';
-            joinRoomModal.style.display = 'none';
-        }
-        
-        // 방 목록에서 특정 방을 클릭했을 때 호출되는 함수
-        function attemptJoinRoom(roomName, hasPassword) {
-            joinRoomTitle.textContent = `방 입장: ${roomName}`;
-            currentJoiningRoom.value = roomName;
-            
-            // 비밀번호 입력창 표시/숨김
-            if (hasPassword) {
-                joinPasswordArea.style.display = 'block';
-                joinPasswordInput.required = true;
-            } else {
-                joinPasswordArea.style.display = 'none';
-                joinPasswordInput.required = false;
-                joinPasswordInput.value = ''; // 비밀번호 초기화
-            }
-            
-            // 모달 열기
-            joinRoomModal.style.display = 'block';
-            joinNicknameInput.focus();
+            passwordCheckModal.style.display = 'none';
+            nicknameModal.style.display = 'none';
         }
 
+        /**
+         * 닉네임 입력 모달을 띄우고, 폼 제출 시 'enter room'을 서버에 전송합니다.
+         */
+        function showNicknameModal(roomName, titleText) {
+            hideAllModals();
+            nicknameRoomTitle.textContent = titleText;
+            finalRoomName.value = roomName;
+            finalNicknameInput.value = ''; // 닉네임 입력창 초기화
+            nicknameModal.style.display = 'block';
+            finalNicknameInput.focus();
+        }
+        
         // --- 이벤트 리스너 ---
         
+        // 0. 소켓 연결 시 처리 (화면 초기화)
+        socket.on('connect', () => {
+            console.log('Socket connected.');
+            if (!currentRoomName) { // 로비 화면일 경우에만
+                mainContent.style.display = 'block';
+                chatArea.style.display = 'none';
+                roomTitle.textContent = 'Gemini 멀티 채팅방 로비';
+                userCountArea.textContent = '';
+            }
+        });
+
+
         // 1. 방 만들기 버튼 클릭
         createRoomBtn.addEventListener('click', () => {
             hideAllModals();
@@ -303,34 +327,65 @@
             const usePassword = usePasswordCheckbox.checked;
             const password = usePassword ? roomPasswordInput.value.trim() : null;
             
-            // 방 생성 시에는 닉네임 입력이 따로 없으므로, 기본값(로비에서 입력)으로 설정합니다.
-            // 💡 여기서는 닉네임 입력을 JoinRoomModal에서 통일하도록 로직을 수정했습니다.
-            //    -> 방 생성 후 바로 닉네임 모달을 열도록 변경 (새로운 구조에 맞게)
-            
-            // 닉네임을 로비에서 입력하는 것이 아니라, 방 생성 후 바로 닉네임 입력 모달을 띄우고,
-            // 닉네임 입력 후 서버의 'create room' 또는 'join room' 로직을 실행하도록 변경합니다.
-            
-            hideAllModals();
-            attemptJoinRoom(roomName, usePassword); // 방을 생성하지만, 실제 서버 통신은 join-room-form에서 수행
-            
+            socket.emit('create room', { roomName, maxUsers, password }, (response) => {
+                if (response.success) {
+                    // 방 생성 성공 시, 바로 닉네임 입력 단계로 이동 (비밀번호 확인 생략)
+                    showNicknameModal(roomName, `방 생성 완료: ${roomName}`);
+                } else {
+                    alert(response.reason);
+                }
+            });
         });
         
-        // 2. 방 입장 폼 제출 (서버로 'join room' 또는 'create room' 전송)
-        joinRoomForm.addEventListener('submit', (e) => {
+        // 2. 방 목록에서 방 클릭 시 (방 입장 시도)
+        function attemptJoinRoom(roomName, hasPassword) {
+            hideAllModals();
+            
+            if (hasPassword) {
+                // 비밀번호가 있다면: 비밀번호 확인 모달 띄우기
+                checkRoomTitle.textContent = `방 입장: ${roomName}`;
+                checkRoomName.value = roomName;
+                checkPasswordArea.style.display = 'block';
+                checkPasswordInput.required = true;
+                checkPasswordInput.value = ''; // 비밀번호 초기화
+                passwordCheckModal.style.display = 'block';
+                checkPasswordInput.focus();
+            } else {
+                // 비밀번호가 없다면: 바로 닉네임 입력 모달 띄우기
+                showNicknameModal(roomName, `방 입장: ${roomName}`);
+            }
+        }
+        
+        // 3. 비밀번호 확인 폼 제출 (서버로 'check join room' 전송)
+        passwordCheckForm.addEventListener('submit', (e) => {
             e.preventDefault();
             
-            const roomName = currentJoiningRoom.value;
-            const nickname = joinNicknameInput.value.trim();
-            const password = joinPasswordInput.value.value || null;
+            const roomName = checkRoomName.value;
+            const password = checkPasswordInput.value.trim();
             
-            // 💡 서버에 방이 이미 존재하는지 확인하는 로직이 필요합니다.
-            //    (클라이언트에서는 방 목록을 보고 입장하므로 'join room'으로 통일)
+            socket.emit('check join room', { roomName, password }, (response) => {
+                if (response.success) {
+                    // 비밀번호 확인 통과 시 닉네임 입력 단계로 이동
+                    showNicknameModal(roomName, `방 입장: ${roomName}`);
+                } else {
+                    alert(response.reason);
+                }
+            });
+        });
+        
+        // 4. 닉네임 입력 폼 제출 (서버로 'enter room' 전송)
+        nicknameForm.addEventListener('submit', (e) => {
+            e.preventDefault();
             
-            // --- 클라이언트 측에서의 방 생성/입장 통일 로직 ---
-            const isCreating = !!document.getElementById('room-name-input').value.trim() && !document.getElementById('current-joining-room').value; // 이 플래그는 복잡하니, 서버 응답에 따라 처리하도록 변경합니다.
+            const roomName = finalRoomName.value;
+            const nickname = finalNicknameInput.value.trim();
             
-            // 서버에 'join room' 요청 (서버에서 방 유무 및 정원, 비밀번호를 체크)
-            socket.emit('join room', { roomName, password, nickname }, (response) => {
+            if (nickname.length === 0) {
+                alert("닉네임을 입력해주세요.");
+                return;
+            }
+
+            socket.emit('enter room', { roomName, nickname }, (response) => {
                 if (response.success) {
                     currentRoomName = response.roomName;
                     myNickname = nickname;
@@ -341,17 +396,11 @@
                     messages.innerHTML = '';
                     
                     roomTitle.textContent = `채팅방: ${currentRoomName}`;
-                    
-                    // 닉네임 등록 성공 시 본인의 접속 알림을 스스로 표시
-                    // 서버에서 전송하는 시스템 메시지와 중복되므로, 서버 메시지를 기다립니다.
-                    // addSystemMessage({ text: `${myNickname}님이 접속했습니다.` });
-                    
                     chatInput.focus();
                 } else {
                     alert(response.reason);
                 }
             });
-            
         });
         
         // 모달 닫기 버튼 처리
@@ -360,12 +409,12 @@
         });
         
         window.onclick = (event) => {
-            if (event.target === createRoomModal || event.target === joinRoomModal) {
+            if (event.target === createRoomModal || event.target === passwordCheckModal || event.target === nicknameModal) {
                 hideAllModals();
             }
         };
 
-        // 3. 채팅 메시지 제출 처리
+        // 5. 채팅 메시지 제출 처리
         chatForm.addEventListener('submit', (e) => {
             e.preventDefault();
             const message = chatInput.value.trim();
@@ -410,7 +459,7 @@
             }
         });
 
-        // 4. 메시지 수신 및 표시
+        // 6. 메시지 수신 및 표시
         socket.on('chat message', (data) => {
             // A. 챗봇 응답 도착 시 대기 메시지 제거 및 애니메이션 중지
             if (data.nickname === 'Gemini 챗봇' && chatbotWaitingMessage) {
@@ -456,7 +505,7 @@
             window.scrollTo(0, document.body.scrollHeight);
         });
 
-        // 5. 방 목록 업데이트
+        // 7. 방 목록 업데이트
         socket.on('update room list', (roomList) => {
             roomListDiv.innerHTML = ''; // 목록 초기화
 
@@ -481,14 +530,9 @@
             });
         });
 
-        // 6. 현재 방 접속자 수 업데이트
+        // 8. 현재 방 접속자 수 업데이트
         socket.on('update room user count', (countString) => {
             userCountArea.textContent = `접속 인원: ${countString}`; 
-        });
-        
-        // 초기 접속 시 방 목록 요청 (connect 이벤트 핸들러는 단순화)
-        socket.on('connect', () => {
-            console.log('Socket connected. Requesting room list...');
         });
     </script>
 </body>

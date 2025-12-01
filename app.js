@@ -637,7 +637,6 @@
 //   console.log('Listening on http://localhost:3000');
 // });
 // ! 여기까지 6차 코드 (챗봇 응답 무시 플래그 추가)
-
 // app.js
 
 import 'dotenv/config'; 
@@ -663,8 +662,6 @@ const GEMINI_MODEL = "gemini-2.5-flash";
 
 // 🚩 방 정보 관리 객체: { [roomName]: { maxUsers: number, password?: string, currentUsers: { [socketId]: nickname } } }
 const rooms = {};
-
-// 🚩 챗봇 응답 무시 플래그는 Room 단위로 관리될 필요가 없어졌으므로 제거하고, 대신 접속자 수 확인 로직을 간소화합니다.
 
 // --- 헬퍼 함수 ---
 
@@ -723,22 +720,16 @@ io.on('connection', (socket) => {
 
     // 1. 방 생성 로직
     socket.on('create room', (roomData, callback) => {
-        const { roomName, maxUsers, password, nickname } = roomData;
+        const { roomName, maxUsers, password } = roomData;
 
         if (rooms[roomName]) {
             return callback({ success: false, reason: "이미 존재하는 방 이름입니다." });
         }
         
-        // 정원 범위 체크
         if (maxUsers < 2 || maxUsers > 4) {
              return callback({ success: false, reason: "정원은 2명에서 4명 사이여야 합니다." });
         }
         
-        // 닉네임 중복 체크는 방 입장 시에만 확인합니다. (Room 내에서만 유효)
-        if (!nickname) {
-            return callback({ success: false, reason: "닉네임을 입력해야 합니다." });
-        }
-
         // 방 생성
         rooms[roomName] = {
             maxUsers: maxUsers,
@@ -746,20 +737,25 @@ io.on('connection', (socket) => {
             currentUsers: {}
         };
         
-        // 방에 입장시키는 로직 호출
-        joinRoom(socket, roomName, nickname, callback); 
+        // 방 생성 성공을 클라이언트에 알림
+        callback({ 
+            success: true, 
+            roomName: roomName,
+        }); 
+        
+        broadcastRoomList(); // 방 목록 업데이트
     });
     
-    // 2. 방 입장 로직
-    socket.on('join room', (roomData, callback) => {
-        const { roomName, password, nickname } = roomData;
+    // 2. 방 입장 비밀번호 및 정원 확인 로직 (일반 사용자)
+    socket.on('check join room', (roomData, callback) => {
+        const { roomName, password } = roomData;
 
         if (!rooms[roomName]) {
             return callback({ success: false, reason: "존재하지 않는 방입니다." });
         }
         
         const room = rooms[roomName];
-
+        
         // 비밀번호 확인
         if (room.password && room.password !== password) {
             return callback({ success: false, reason: "비밀번호가 틀렸습니다." });
@@ -770,40 +766,33 @@ io.on('connection', (socket) => {
             return callback({ success: false, reason: "정원이 다 찼습니다." });
         }
         
-        // 닉네임 확인
-        if (!nickname) {
-            return callback({ success: false, reason: "닉네임을 입력해야 합니다." });
+        // 비밀번호 검증 통과 (닉네임만 남음)
+        callback({ success: true, roomName: roomName });
+    });
+    
+    // 3. 최종 방 진입 로직 (닉네임 검증 후)
+    socket.on('enter room', (roomData, callback) => {
+        const { roomName, nickname } = roomData;
+        
+        if (!rooms[roomName] || !nickname) {
+            return callback({ success: false, reason: "유효하지 않은 요청입니다." });
         }
+        
+        const room = rooms[roomName];
 
         // 닉네임 중복 확인 (해당 방 내에서)
         if (Object.values(room.currentUsers).includes(nickname)) {
             return callback({ success: false, reason: "해당 방에서 이미 사용 중인 닉네임입니다." });
         }
         
-        // 방에 입장시키는 로직 호출
-        joinRoom(socket, roomName, nickname, callback);
-    });
-    
-    /**
-     * 실제 방 입장 처리를 수행하는 함수
-     */
-    function joinRoom(socket, roomName, nickname, callback) {
-        
-        // 기존 방에서 나가기 (이전 접속 정보 정리)
-        if (socket.currentRoom) {
-            // 퇴장 로직은 disconnect 핸들러와 중복되므로, 실제 방 이동 시에만 정리
-            // 여기서는 하나의 방에만 있을 수 있도록 가정하고, 퇴장 시 정리를 disconnect에서 처리
-        }
-        
+        // 실제 방 입장 처리
         socket.join(roomName); 
-        socket.currentRoom = roomName; // 소켓 객체에 현재 방 이름 저장
-        socket.nickname = nickname; // 소켓 객체에 닉네임 저장
+        socket.currentRoom = roomName; 
+        socket.nickname = nickname; 
         
-        rooms[roomName].currentUsers[socket.id] = nickname; // 방 정보에 사용자 등록
+        rooms[roomName].currentUsers[socket.id] = nickname; 
         
-        // 사용자들에게 입장 알림
         sendSystemMessage(roomName, `${nickname}님이 접속했습니다.`);
-        
         updateRoomUserCount(roomName);
         
         callback({ 
@@ -811,10 +800,9 @@ io.on('connection', (socket) => {
             roomName: roomName, 
             maxUsers: rooms[roomName].maxUsers 
         });
-    }
+    });
 
-
-    // 3. 채팅 메시지 및 챗봇 처리 로직
+    // 4. 채팅 메시지 및 챗봇 처리 로직
     socket.on('chat message', async (msg) => {
         if (!socket.nickname || !socket.currentRoom) return;
         
@@ -833,9 +821,6 @@ io.on('connection', (socket) => {
             if (query.length === 0) {
                 botResponseText = "질문 내용을 입력해 주세요. (예: @챗봇 오늘 날씨)";
             } else {
-                
-                // 챗봇 응답 대기 시작 알림 (클라이언트에서 대기 메시지 처리)
-                // 이 서버 로직은 단순화하고 응답만 전송합니다.
                 
                 try {
                     const response = await ai.models.generateContent({ 
@@ -866,7 +851,7 @@ io.on('connection', (socket) => {
         }
     });
   
-    // 4. 연결 끊김 처리
+    // 5. 연결 끊김 처리
     socket.on('disconnect', () => {
         const roomName = socket.currentRoom;
         const nickname = socket.nickname;
