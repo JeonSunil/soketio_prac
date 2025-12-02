@@ -5,31 +5,105 @@
     <style>
         body { 
             margin: 0; 
-            padding-bottom: 70px; 
+            padding-bottom: 70px; /* 입력 폼 공간 확보 */
             font-family: sans-serif; 
             background-color: #f7f7f7;
+            display: flex; 
+            flex-direction: column;
+            min-height: 100vh;
         }
         header {
             background-color: #3f51b5;
             color: white;
             padding: 15px;
             text-align: center;
+            flex-shrink: 0;
+            z-index: 10;
         }
         #main-content {
             padding: 20px;
+            flex-grow: 1; 
+            flex-shrink: 0;
         }
-        #messages { 
+        
+        /* 채팅 레이아웃 스타일 */
+        #chat-container {
+            display: none; 
+            flex-grow: 1;
+            overflow: hidden;
+        }
+        #user-list-sidebar {
+            width: 200px;
+            background-color: #e3f2fd;
+            padding: 10px;
+            border-right: 1px solid #ddd;
+            overflow-y: auto;
+            flex-shrink: 0;
+            height: calc(100vh - 50px); 
+        }
+        #user-list-sidebar h4 {
+            margin-top: 0;
+            color: #3f51b5;
+            margin-bottom: 10px;
+        }
+        .user-list-item {
+            padding: 5px;
+            margin-bottom: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+            border-bottom: 1px dotted #ccc;
+        }
+        .user-list-item:hover {
+            background-color: #c5e1a5;
+        }
+        .user-list-item .ready-status {
+            font-size: 0.8em;
+            margin-left: 5px;
+            font-weight: bold;
+        }
+        .host-label {
+            color: gold; 
+            font-weight: bold;
+            margin-left: 5px;
+        }
+        .user-list-item[data-is-host="true"] {
+            border: 1px solid gold;
+        }
+
+        #chat-main-content {
+            flex-grow: 1;
+            overflow-y: hidden;
+            height: calc(100vh - 50px);
+            position: relative;
+        }
+        
+        /* 채팅 영역 구분 */
+        .chat-room {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            overflow-y: auto;
+            padding: 10px;
+            padding-bottom: 60px; 
+            display: none; 
+        }
+        #lobby-chat-area { display: block; }
+        
+        #messages, #game-messages { 
             margin: 0; 
-            padding: 10px; 
+            padding: 0;
             list-style-type: none; 
         }
-        #messages li { 
+        #messages li, #game-messages li { 
             margin-bottom: 10px; 
             padding: 8px 12px;
             border-radius: 8px;
             box-shadow: 0 1px 2px rgba(0,0,0,0.05);
             line-height: 1.4;
         }
+        
         .chat-message-time {
             color: gray; 
             font-size: 0.75em;
@@ -47,31 +121,37 @@
             font-weight: bold;
             color: #333;
         }
-        /* 🚩 버튼 스타일 정의 */
+
+        /* 버튼 스타일 */
         #game-start-btn, #game-ready-btn {
             padding: 10px 15px;
             border: none;
-            background-color: #28a745; /* 녹색 */
+            background-color: #28a745;
             color: white;
             border-radius: 4px;
             cursor: pointer;
             margin-right: 10px;
-            display: none; /* 기본 숨김 */
+            display: none; 
+            flex-shrink: 0;
         }
         #game-ready-btn.ready {
-            background-color: #ffc107; /* 노란색 (준비 취소) */
+            background-color: #ffc107; 
         }
-
+        
         #chat-form {
+            /* 🚩 기본 display는 JS에서 'none'으로 시작합니다. */
             position: fixed;
             bottom: 0;
-            width: 100%;
+            width: 100%; 
+            left: 0;     
+            right: 0;    
             background: #ffffff;
             padding: 10px;
             box-sizing: border-box;
             border-top: 1px solid #ddd;
-            display: flex;
+            display: none; /* 🚩 기본적으로 숨기되, JS에서 'flex'로 변경 */
             align-items: center; 
+            z-index: 10; 
         }
         #chat-input {
             flex-grow: 1;
@@ -80,20 +160,32 @@
             border: 1px solid #ccc;
             border-radius: 4px;
         }
-        #chat-form button:not(#game-start-btn):not(#game-ready-btn), .btn {
-            padding: 10px 15px;
-            border: none;
-            background-color: #007bff;
-            color: white;
-            border-radius: 4px;
-            cursor: pointer;
+
+        /* 게임 활성화 상태 스타일 */
+        body.game-active #main-content {
+            display: none;
+        }
+        body.game-active #chat-container {
+            display: flex;
+            height: calc(100vh - 50px);
+        }
+        body.game-active #chat-form {
+            width: calc(100% - 200px); 
+            left: 200px;
+            display: flex; /* 게임 중에는 반드시 표시 */
+        }
+        body.game-active #lobby-chat-area {
+            display: none;
+        }
+        body.game-active #game-chat-area {
+            display: block;
         }
         
-        /* ... (생략: 모달 스타일 및 방 목록 스타일) ... */
+        /* 모달 스타일 */
         .modal {
-            display: none;
+            display: none; 
             position: fixed;
-            z-index: 1;
+            z-index: 1000; 
             left: 0;
             top: 0;
             width: 100%;
@@ -161,13 +253,30 @@
         </div>
     </div>
     
-    <div id="chat-area" style="display: none;">
-        <ul id="messages"></ul>
-        <form id="chat-form">
-            <button id="game-start-btn">게임 시작</button> <button id="game-ready-btn" data-ready="false">게임 준비</button> <input id="chat-input" placeholder="메시지를 입력하세요 (@챗봇 내용)" autocomplete="off"/>
-            <button>전송</button>
-        </form>
+    <div id="chat-container">
+        <div id="user-list-sidebar">
+            <h4>접속 유저</h4>
+            <div id="current-user-list"></div>
+        </div>
+        
+        <div id="chat-main-content">
+            <div id="lobby-chat-area" class="chat-room">
+                <ul id="messages"></ul>
+            </div>
+            
+            <div id="game-chat-area" class="chat-room">
+                <ul id="game-messages"></ul>
+            </div>
+        </div>
     </div>
+    
+    <form id="chat-form">
+        <button id="game-start-btn">게임 시작</button>
+        <button id="game-ready-btn" data-ready="false">게임 준비</button>
+        <input id="chat-input" placeholder="메시지를 입력하세요 (@챗봇 내용)" autocomplete="off"/>
+        <button>전송</button>
+    </form>
+
 
     <div id="create-room-modal" class="modal">
         <div class="modal-content">
@@ -218,7 +327,7 @@
         // 💡 전역 상태 변수
         let currentRoomName = null;
         let myNickname = null;
-        let isHost = false; // 🚩 방장 여부 상태 변수
+        let isHost = false; 
         
         // HTML 요소 정의
         const roomTitle = document.getElementById('room-title');
@@ -226,12 +335,20 @@
         const mainContent = document.getElementById('main-content');
         const roomListDiv = document.getElementById('room-list');
         const createRoomBtn = document.getElementById('create-room-btn');
-        const chatArea = document.getElementById('chat-area');
-        const chatForm = document.getElementById('chat-form');
-        const chatInput = document.getElementById('chat-input');
-        const messages = document.getElementById('messages');
         
-        // 🚩 버튼 요소 정의
+        const chatContainer = document.getElementById('chat-container'); 
+        const userListSidebar = document.getElementById('user-list-sidebar'); 
+        const currentUserList = document.getElementById('current-user-list'); 
+        const chatMainContent = document.getElementById('chat-main-content'); 
+        
+        const lobbyChatArea = document.getElementById('lobby-chat-area'); 
+        const gameChatArea = document.getElementById('game-chat-area'); 
+
+        const chatForm = document.getElementById('chat-form'); // 폼 요소
+        const chatInput = document.getElementById('chat-input');
+        const messages = document.getElementById('messages'); 
+        const gameMessages = document.getElementById('game-messages'); 
+
         const gameStartBtn = document.getElementById('game-start-btn');
         const gameReadyBtn = document.getElementById('game-ready-btn');
 
@@ -267,20 +384,21 @@
             return `${hours}:${minutes}`;
         }
         
-        function addSystemMessage(data) {
+        function addSystemMessage(data, targetList = messages) { 
             const item = document.createElement('li');
             item.textContent = `${data.nickname} ${data.text}`; 
             item.style.color = 'gray';
             item.style.textAlign = 'center';
-            messages.appendChild(item);
-            window.scrollTo(0, document.body.scrollHeight);
+            targetList.appendChild(item);
+            targetList.scrollTop = targetList.scrollHeight;
         }
         
         function startWaitingAnimation() {
              if (waitingAnimationInterval) {
                 clearInterval(waitingAnimationInterval);
             }
-            const waitingDiv = document.getElementById('waiting-text');
+            const activeChatArea = document.body.classList.contains('game-active') ? gameMessages : messages;
+            const waitingDiv = activeChatArea.querySelector('#waiting-text');
             if (!waitingDiv) return;
 
             let dotCount = 1;
@@ -306,16 +424,19 @@
             finalNicknameInput.focus();
         }
         
-        /**
-         * 방장 여부에 따라 하단 버튼을 설정합니다.
-         * @param {boolean} hostStatus 
-         */
+        function updateHostDelegation(targetSocketId, targetNickname) {
+             if (isHost && targetSocketId !== socket.id) {
+                if (confirm(`정말로 ${targetNickname}님에게 방장 권한을 위임하시겠습니까?`)) {
+                    socket.emit('delegate host', targetSocketId);
+                }
+             }
+        }
+        
         function updateBottomButtons(hostStatus) {
             isHost = hostStatus;
             gameStartBtn.style.display = isHost ? 'block' : 'none';
             gameReadyBtn.style.display = isHost ? 'none' : 'block';
             
-            // 방장 권한이 변경될 경우, 준비 상태를 초기화
             if (isHost === false) { 
                 gameReadyBtn.textContent = '게임 준비';
                 gameReadyBtn.classList.remove('ready');
@@ -323,17 +444,31 @@
             }
         }
         
+        function enterGamePhase(message) {
+            document.body.classList.add('game-active');
+            addSystemMessage({ nickname: '[시스템]', text: message }, gameMessages);
+            gameMessages.innerHTML = ''; 
+        }
+
+        function exitGamePhase(message) {
+            document.body.classList.remove('game-active');
+            addSystemMessage({ nickname: '[시스템]', text: message }, messages);
+        }
+        
         // --- 이벤트 리스너 ---
         
-        // 0. 소켓 연결 시 처리 (화면 초기화)
+        // 0. 소켓 연결 시 처리 (로비 상태 초기화)
         socket.on('connect', () => {
             console.log('Socket connected.');
             if (!currentRoomName) { 
                 mainContent.style.display = 'block';
-                chatArea.style.display = 'none';
+                chatContainer.style.display = 'none';
                 roomTitle.textContent = 'Gemini 멀티 채팅방 로비';
                 userCountArea.textContent = '';
-                updateBottomButtons(false); // 로비에서는 버튼 숨김
+                updateBottomButtons(false); 
+                hideAllModals(); 
+                
+                chatForm.style.display = 'none'; // 🚩 로비 상태일 때 폼 숨기기
             }
         });
 
@@ -351,7 +486,7 @@
             if (!e.target.checked) roomPasswordInput.value = '';
         });
         
-        // 1-2. 방 만들기 폼 제출 (서버로 'create room' 전송)
+        // 1-2. 방 만들기 폼 제출
         createRoomForm.addEventListener('submit', (e) => {
             e.preventDefault();
             
@@ -369,7 +504,7 @@
             });
         });
         
-        // 2. 방 목록에서 방 클릭 시 (방 입장 시도)
+        // 2. 방 목록에서 방 클릭 시
         function attemptJoinRoom(roomName, hasPassword) {
             hideAllModals();
             
@@ -402,7 +537,7 @@
             });
         });
         
-        // 4. 닉네임 입력 폼 제출 (수정: 버튼 상태 업데이트)
+        // 4. 닉네임 입력 폼 제출 (방 입장 성공 시)
         nicknameForm.addEventListener('submit', (e) => {
             e.preventDefault();
             
@@ -421,15 +556,22 @@
                     
                     hideAllModals();
                     mainContent.style.display = 'none';
-                    chatArea.style.display = 'block';
+                    chatContainer.style.display = 'flex';
+                    
+                    document.body.classList.remove('game-active');
+                    lobbyChatArea.style.display = 'block'; 
+                    gameChatArea.style.display = 'none';
+                    
                     messages.innerHTML = '';
+                    gameMessages.innerHTML = '';
                     
                     roomTitle.textContent = `채팅방: ${currentRoomName}`;
                     chatInput.focus();
                     
-                    // 🚩 방장 여부에 따라 버튼 표시
                     updateBottomButtons(response.isHost);
                     
+                    chatForm.style.display = 'flex'; // 🚩 방 입장 성공 시 폼 표시
+
                     if (response.isHost) {
                         addSystemMessage({ nickname: '[시스템]', text: '🎉 방장 권한이 부여되었습니다. 게임 시작 버튼이 표시됩니다.' });
                     }
@@ -461,15 +603,15 @@
             }
         });
 
-        // 6. 게임 준비 버튼 클릭 핸들러 (추가)
+        // 6. 게임 준비 버튼 클릭 핸들러
         gameReadyBtn.addEventListener('click', (e) => {
             e.preventDefault();
             if (!isHost) {
                 socket.emit('toggle ready');
             }
         });
-
-        // 7. 채팅 메시지 제출 처리 (변동 없음)
+        
+        // 7. 채팅 메시지 제출 처리
         chatForm.addEventListener('submit', (e) => {
             e.preventDefault();
             const message = chatInput.value.trim();
@@ -478,6 +620,7 @@
             if (message && currentRoomName && myNickname) {
                 socket.emit('chat message', message); 
 
+                const targetList = document.body.classList.contains('game-active') ? gameMessages : messages;
                 const timeString = formatTime(now);
                 
                 const userItem = document.createElement('li');
@@ -486,47 +629,54 @@
                     <span class="chat-message-time">(${timeString})</span>
                     <div>${message}</div>
                 `;
-                messages.appendChild(userItem);
+                targetList.appendChild(userItem);
                 
                 
                 if (message.startsWith('@챗봇')) {
                     const waitingItem = document.createElement('li');
                     waitingItem.classList.add('chatbot-message'); 
-                    
                     waitingItem.innerHTML = `
                         <span class="chatbot-nickname">Gemini 챗봇</span>
                         <span class="chat-message-time">(${timeString})</span>
                         <div id="waiting-text">응답 대기중.</div> 
                         `;
-                    
-                    messages.appendChild(waitingItem);
-                    
+                    targetList.appendChild(waitingItem);
                     chatbotWaitingMessage = waitingItem;
-                    
                     startWaitingAnimation(); 
                     chatInput.disabled = true; 
                 }
 
-                window.scrollTo(0, document.body.scrollHeight);
+                targetList.scrollTop = targetList.scrollHeight;
                 chatInput.value = '';
             }
         });
 
-        // 8. 메시지 수신 및 표시 (변동 없음)
+        // 8. 메시지 수신 및 표시
         socket.on('chat message', (data) => {
+            const targetList = document.body.classList.contains('game-active') ? gameMessages : messages;
+            
             if (data.nickname === 'Gemini 챗봇' && chatbotWaitingMessage) {
                 if (waitingAnimationInterval) {
                     clearInterval(waitingAnimationInterval);
                     waitingAnimationInterval = null;
                 }
-
-                messages.removeChild(chatbotWaitingMessage);
+                
+                const timeString = formatTime(data.timestamp);
+                chatbotWaitingMessage.innerHTML = `
+                    <span class="chatbot-nickname">Gemini 챗봇</span>
+                    <span class="chat-message-time">(${timeString})</span>
+                    <div>${data.text}</div>
+                `;
+                chatbotWaitingMessage.classList.remove('chatbot-message');
                 chatbotWaitingMessage = null; 
                 chatInput.disabled = false;
+                
+                targetList.scrollTop = targetList.scrollHeight;
+                return;
             }
             
             if (data.nickname === '[시스템]') {
-                addSystemMessage(data);
+                addSystemMessage(data, targetList);
                 return;
             }
 
@@ -550,41 +700,56 @@
                 <div>${data.text}</div>
             `;
             
-            messages.appendChild(item);
-            window.scrollTo(0, document.body.scrollHeight);
+            targetList.appendChild(item);
+            targetList.scrollTop = targetList.scrollHeight;
         });
         
-        // 9. 유저 준비 상태 업데이트 (추가)
-        socket.on('user ready update', (data) => {
-            if (data.nickname === myNickname) {
-                // 내 준비 상태 변경 시 버튼 UI 업데이트
-                if (data.isReady) {
-                    gameReadyBtn.textContent = '준비 취소';
-                    gameReadyBtn.classList.add('ready');
-                } else {
-                    gameReadyBtn.textContent = '게임 준비';
-                    gameReadyBtn.classList.remove('ready');
-                }
-                gameReadyBtn.setAttribute('data-ready', data.isReady);
-            }
+        // 9. 유저 목록 업데이트
+        socket.on('update user list', (userList) => {
+            currentUserList.innerHTML = '';
             
-            // 다른 유저의 준비 상태는 시스템 메시지를 통해 알림 (서버에서 이미 처리)
+            userList.forEach(user => {
+                const item = document.createElement('div');
+                item.id = user.id; 
+                item.className = 'user-list-item';
+                item.setAttribute('data-is-host', user.isHost);
+                item.setAttribute('data-is-ready', user.isReady);
+                
+                if (isHost && user.id !== socket.id) {
+                    item.title = `${user.nickname}에게 방장 권한 위임 (클릭)`;
+                    item.onclick = () => updateHostDelegation(user.id, user.nickname);
+                } else if (!isHost && user.id !== socket.id) {
+                    item.title = '클릭하여 유저 정보 보기';
+                }
+
+                let statusLabel = '';
+                if (user.isHost) {
+                    statusLabel = '<span class="host-label">[방장]</span>';
+                } else if (user.isReady) {
+                    statusLabel = '<span class="ready-status" style="color:#28a745;">[준비]</span>';
+                } else if (!user.isHost) {
+                     statusLabel = '<span class="ready-status" style="color:#dc3545;">[대기]</span>';
+                }
+
+                item.innerHTML = `
+                    <span style="font-weight: bold;">${user.nickname}</span>
+                    ${statusLabel}
+                `;
+                currentUserList.appendChild(item);
+            });
         });
         
-        // 10. 방장 권한 변경 알림 (추가)
+        // 10. 방장 권한 변경 알림
         socket.on('host change', (newHostStatus) => {
             updateBottomButtons(newHostStatus);
-            if (newHostStatus) {
-                addSystemMessage({ nickname: '[시스템]', text: '👑 방장 권한이 위임되었습니다.' });
-            }
+        });
+        
+        // 11. 게임 시작 이벤트 수신
+        socket.on('game phase start', (data) => {
+            enterGamePhase(data.message);
         });
 
-        // 11. 게임 시작 이벤트 수신 (변동 없음)
-        socket.on('game started', (message) => {
-            // 서버에서 시스템 메시지로 처리
-        });
-
-        // 12. 방 목록 업데이트 (변동 없음)
+        // 12. 방 목록 업데이트
         socket.on('update room list', (roomList) => {
             roomListDiv.innerHTML = ''; 
 
@@ -609,7 +774,7 @@
             });
         });
 
-        // 13. 현재 방 접속자 수 업데이트 (변동 없음)
+        // 13. 현재 방 접속자 수 업데이트
         socket.on('update room user count', (countString) => {
             userCountArea.textContent = `접속 인원: ${countString}`; 
         });
