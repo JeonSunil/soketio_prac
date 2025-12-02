@@ -47,6 +47,21 @@
             font-weight: bold;
             color: #333;
         }
+        /* 🚩 버튼 스타일 정의 */
+        #game-start-btn, #game-ready-btn {
+            padding: 10px 15px;
+            border: none;
+            background-color: #28a745; /* 녹색 */
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+            display: none; /* 기본 숨김 */
+        }
+        #game-ready-btn.ready {
+            background-color: #ffc107; /* 노란색 (준비 취소) */
+        }
+
         #chat-form {
             position: fixed;
             bottom: 0;
@@ -56,6 +71,7 @@
             box-sizing: border-box;
             border-top: 1px solid #ddd;
             display: flex;
+            align-items: center; 
         }
         #chat-input {
             flex-grow: 1;
@@ -64,7 +80,7 @@
             border: 1px solid #ccc;
             border-radius: 4px;
         }
-        #chat-form button, .btn {
+        #chat-form button:not(#game-start-btn):not(#game-ready-btn), .btn {
             padding: 10px 15px;
             border: none;
             background-color: #007bff;
@@ -73,7 +89,7 @@
             cursor: pointer;
         }
         
-        /* 모달 스타일 */
+        /* ... (생략: 모달 스타일 및 방 목록 스타일) ... */
         .modal {
             display: none;
             position: fixed;
@@ -106,8 +122,6 @@
             text-decoration: none;
             cursor: pointer;
         }
-
-        /* 방 목록 스타일 */
         .room-item {
             border: 1px solid #ccc;
             padding: 10px;
@@ -150,7 +164,7 @@
     <div id="chat-area" style="display: none;">
         <ul id="messages"></ul>
         <form id="chat-form">
-            <input id="chat-input" placeholder="메시지를 입력하세요 (@챗봇 내용)" autocomplete="off"/>
+            <button id="game-start-btn">게임 시작</button> <button id="game-ready-btn" data-ready="false">게임 준비</button> <input id="chat-input" placeholder="메시지를 입력하세요 (@챗봇 내용)" autocomplete="off"/>
             <button>전송</button>
         </form>
     </div>
@@ -204,6 +218,7 @@
         // 💡 전역 상태 변수
         let currentRoomName = null;
         let myNickname = null;
+        let isHost = false; // 🚩 방장 여부 상태 변수
         
         // HTML 요소 정의
         const roomTitle = document.getElementById('room-title');
@@ -216,6 +231,10 @@
         const chatInput = document.getElementById('chat-input');
         const messages = document.getElementById('messages');
         
+        // 🚩 버튼 요소 정의
+        const gameStartBtn = document.getElementById('game-start-btn');
+        const gameReadyBtn = document.getElementById('game-ready-btn');
+
         // 모달 요소 정의
         const createRoomModal = document.getElementById('create-room-modal');
         const passwordCheckModal = document.getElementById('password-check-modal');
@@ -278,16 +297,30 @@
             nicknameModal.style.display = 'none';
         }
 
-        /**
-         * 닉네임 입력 모달을 띄우고, 폼 제출 시 'enter room'을 서버에 전송합니다.
-         */
         function showNicknameModal(roomName, titleText) {
             hideAllModals();
             nicknameRoomTitle.textContent = titleText;
             finalRoomName.value = roomName;
-            finalNicknameInput.value = ''; // 닉네임 입력창 초기화
+            finalNicknameInput.value = ''; 
             nicknameModal.style.display = 'block';
             finalNicknameInput.focus();
+        }
+        
+        /**
+         * 방장 여부에 따라 하단 버튼을 설정합니다.
+         * @param {boolean} hostStatus 
+         */
+        function updateBottomButtons(hostStatus) {
+            isHost = hostStatus;
+            gameStartBtn.style.display = isHost ? 'block' : 'none';
+            gameReadyBtn.style.display = isHost ? 'none' : 'block';
+            
+            // 방장 권한이 변경될 경우, 준비 상태를 초기화
+            if (isHost === false) { 
+                gameReadyBtn.textContent = '게임 준비';
+                gameReadyBtn.classList.remove('ready');
+                gameReadyBtn.setAttribute('data-ready', 'false');
+            }
         }
         
         // --- 이벤트 리스너 ---
@@ -295,14 +328,14 @@
         // 0. 소켓 연결 시 처리 (화면 초기화)
         socket.on('connect', () => {
             console.log('Socket connected.');
-            if (!currentRoomName) { // 로비 화면일 경우에만
+            if (!currentRoomName) { 
                 mainContent.style.display = 'block';
                 chatArea.style.display = 'none';
                 roomTitle.textContent = 'Gemini 멀티 채팅방 로비';
                 userCountArea.textContent = '';
+                updateBottomButtons(false); // 로비에서는 버튼 숨김
             }
         });
-
 
         // 1. 방 만들기 버튼 클릭
         createRoomBtn.addEventListener('click', () => {
@@ -329,7 +362,6 @@
             
             socket.emit('create room', { roomName, maxUsers, password }, (response) => {
                 if (response.success) {
-                    // 방 생성 성공 시, 바로 닉네임 입력 단계로 이동 (비밀번호 확인 생략)
                     showNicknameModal(roomName, `방 생성 완료: ${roomName}`);
                 } else {
                     alert(response.reason);
@@ -342,21 +374,19 @@
             hideAllModals();
             
             if (hasPassword) {
-                // 비밀번호가 있다면: 비밀번호 확인 모달 띄우기
                 checkRoomTitle.textContent = `방 입장: ${roomName}`;
                 checkRoomName.value = roomName;
                 checkPasswordArea.style.display = 'block';
                 checkPasswordInput.required = true;
-                checkPasswordInput.value = ''; // 비밀번호 초기화
+                checkPasswordInput.value = ''; 
                 passwordCheckModal.style.display = 'block';
                 checkPasswordInput.focus();
             } else {
-                // 비밀번호가 없다면: 바로 닉네임 입력 모달 띄우기
                 showNicknameModal(roomName, `방 입장: ${roomName}`);
             }
         }
         
-        // 3. 비밀번호 확인 폼 제출 (서버로 'check join room' 전송)
+        // 3. 비밀번호 확인 폼 제출
         passwordCheckForm.addEventListener('submit', (e) => {
             e.preventDefault();
             
@@ -365,7 +395,6 @@
             
             socket.emit('check join room', { roomName, password }, (response) => {
                 if (response.success) {
-                    // 비밀번호 확인 통과 시 닉네임 입력 단계로 이동
                     showNicknameModal(roomName, `방 입장: ${roomName}`);
                 } else {
                     alert(response.reason);
@@ -373,7 +402,7 @@
             });
         });
         
-        // 4. 닉네임 입력 폼 제출 (서버로 'enter room' 전송)
+        // 4. 닉네임 입력 폼 제출 (수정: 버튼 상태 업데이트)
         nicknameForm.addEventListener('submit', (e) => {
             e.preventDefault();
             
@@ -397,13 +426,21 @@
                     
                     roomTitle.textContent = `채팅방: ${currentRoomName}`;
                     chatInput.focus();
+                    
+                    // 🚩 방장 여부에 따라 버튼 표시
+                    updateBottomButtons(response.isHost);
+                    
+                    if (response.isHost) {
+                        addSystemMessage({ nickname: '[시스템]', text: '🎉 방장 권한이 부여되었습니다. 게임 시작 버튼이 표시됩니다.' });
+                    }
+
                 } else {
                     alert(response.reason);
                 }
             });
         });
         
-        // 모달 닫기 버튼 처리
+        // 모달 닫기 이벤트
         document.querySelectorAll('.close').forEach(span => {
             span.onclick = () => hideAllModals();
         });
@@ -414,7 +451,25 @@
             }
         };
 
-        // 5. 채팅 메시지 제출 처리
+        // 5. 게임 시작 버튼 클릭 핸들러
+        gameStartBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (isHost) {
+                socket.emit('start game');
+            } else {
+                alert("게임 시작 권한은 방장에게만 있습니다.");
+            }
+        });
+
+        // 6. 게임 준비 버튼 클릭 핸들러 (추가)
+        gameReadyBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (!isHost) {
+                socket.emit('toggle ready');
+            }
+        });
+
+        // 7. 채팅 메시지 제출 처리 (변동 없음)
         chatForm.addEventListener('submit', (e) => {
             e.preventDefault();
             const message = chatInput.value.trim();
@@ -423,7 +478,6 @@
             if (message && currentRoomName && myNickname) {
                 socket.emit('chat message', message); 
 
-                // 1. 사용자 본인의 메시지를 즉시 화면에 표시
                 const timeString = formatTime(now);
                 
                 const userItem = document.createElement('li');
@@ -435,7 +489,6 @@
                 messages.appendChild(userItem);
                 
                 
-                // 2. 챗봇 호출이 있다면 응답 대기 메시지를 바로 뒤에 추가
                 if (message.startsWith('@챗봇')) {
                     const waitingItem = document.createElement('li');
                     waitingItem.classList.add('chatbot-message'); 
@@ -459,9 +512,8 @@
             }
         });
 
-        // 6. 메시지 수신 및 표시
+        // 8. 메시지 수신 및 표시 (변동 없음)
         socket.on('chat message', (data) => {
-            // A. 챗봇 응답 도착 시 대기 메시지 제거 및 애니메이션 중지
             if (data.nickname === 'Gemini 챗봇' && chatbotWaitingMessage) {
                 if (waitingAnimationInterval) {
                     clearInterval(waitingAnimationInterval);
@@ -473,18 +525,15 @@
                 chatInput.disabled = false;
             }
             
-            // B. 시스템 메시지 처리
             if (data.nickname === '[시스템]') {
                 addSystemMessage(data);
                 return;
             }
 
-            // C. 사용자 본인이 보낸 메시지(에코)는 이미 화면에 표시되었으므로 건너뜁니다.
             if (data.nickname === myNickname) {
                 return; 
             }
             
-            // D. 챗봇 응답이나 다른 사용자 메시지 처리
             const timeString = formatTime(data.timestamp);
             const item = document.createElement('li');
             
@@ -504,10 +553,40 @@
             messages.appendChild(item);
             window.scrollTo(0, document.body.scrollHeight);
         });
+        
+        // 9. 유저 준비 상태 업데이트 (추가)
+        socket.on('user ready update', (data) => {
+            if (data.nickname === myNickname) {
+                // 내 준비 상태 변경 시 버튼 UI 업데이트
+                if (data.isReady) {
+                    gameReadyBtn.textContent = '준비 취소';
+                    gameReadyBtn.classList.add('ready');
+                } else {
+                    gameReadyBtn.textContent = '게임 준비';
+                    gameReadyBtn.classList.remove('ready');
+                }
+                gameReadyBtn.setAttribute('data-ready', data.isReady);
+            }
+            
+            // 다른 유저의 준비 상태는 시스템 메시지를 통해 알림 (서버에서 이미 처리)
+        });
+        
+        // 10. 방장 권한 변경 알림 (추가)
+        socket.on('host change', (newHostStatus) => {
+            updateBottomButtons(newHostStatus);
+            if (newHostStatus) {
+                addSystemMessage({ nickname: '[시스템]', text: '👑 방장 권한이 위임되었습니다.' });
+            }
+        });
 
-        // 7. 방 목록 업데이트
+        // 11. 게임 시작 이벤트 수신 (변동 없음)
+        socket.on('game started', (message) => {
+            // 서버에서 시스템 메시지로 처리
+        });
+
+        // 12. 방 목록 업데이트 (변동 없음)
         socket.on('update room list', (roomList) => {
-            roomListDiv.innerHTML = ''; // 목록 초기화
+            roomListDiv.innerHTML = ''; 
 
             if (roomList.length === 0) {
                 roomListDiv.innerHTML = '<p>현재 활성화된 방이 없습니다.</p>';
@@ -518,7 +597,7 @@
                 const item = document.createElement('div');
                 item.className = 'room-item';
                 item.setAttribute('data-room-name', room.name);
-                item.onclick = () => attemptJoinRoom(room.name, room.hasPassword); // 클릭 이벤트 설정
+                item.onclick = () => attemptJoinRoom(room.name, room.hasPassword); 
                 
                 const lockIcon = room.hasPassword ? ' 🔒' : '';
                 
@@ -530,7 +609,7 @@
             });
         });
 
-        // 8. 현재 방 접속자 수 업데이트
+        // 13. 현재 방 접속자 수 업데이트 (변동 없음)
         socket.on('update room user count', (countString) => {
             userCountArea.textContent = `접속 인원: ${countString}`; 
         });
