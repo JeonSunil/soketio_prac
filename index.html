@@ -130,7 +130,7 @@
             color: white;
             border-radius: 4px;
             cursor: pointer;
-            margin-right: 10px;
+            margin-right: 10px; /* 오른쪽 마진 유지 */
             display: none; 
             flex-shrink: 0;
         }
@@ -138,8 +138,8 @@
             background-color: #ffc107; 
         }
         
+        /* 🚩 채팅 폼 스타일 */
         #chat-form {
-            /* 🚩 기본 display는 JS에서 'none'으로 시작합니다. */
             position: fixed;
             bottom: 0;
             width: 100%; 
@@ -149,18 +149,34 @@
             padding: 10px;
             box-sizing: border-box;
             border-top: 1px solid #ddd;
-            display: none; /* 🚩 기본적으로 숨기되, JS에서 'flex'로 변경 */
+            display: none; 
             align-items: center; 
             z-index: 10; 
         }
-        #chat-input {
+        
+        /* 🚩 [수정]: 게임 시작/준비 버튼을 가장 왼쪽 (order: 1)으로 */
+        #game-start-btn, #game-ready-btn {
+            order: 1; 
+            margin-right: 10px;
+        }
+
+        /* 🚩 [수정]: 입력창은 중간 (order: 2)으로 */
+        #chat-form > input {
             flex-grow: 1;
             padding: 10px;
             margin-right: 10px;
             border: 1px solid #ccc;
             border-radius: 4px;
+            order: 2; 
         }
-
+        
+        /* 🚩 [수정]: 전송 버튼은 가장 오른쪽 (order: 3)으로 */
+        /* 전송 버튼은 form 내부의 세 번째 버튼이 아니라, input 다음의 첫 번째 button 요소입니다. */
+        #chat-form > button:not(#game-start-btn):not(#game-ready-btn) {
+            order: 3; 
+            margin-right: 0; 
+        }
+        
         /* 게임 활성화 상태 스타일 */
         body.game-active #main-content {
             display: none;
@@ -172,7 +188,7 @@
         body.game-active #chat-form {
             width: calc(100% - 200px); 
             left: 200px;
-            display: flex; /* 게임 중에는 반드시 표시 */
+            display: flex; 
         }
         body.game-active #lobby-chat-area {
             display: none;
@@ -271,10 +287,11 @@
     </div>
     
     <form id="chat-form">
-        <button id="game-start-btn">게임 시작</button>
-        <button id="game-ready-btn" data-ready="false">게임 준비</button>
+        <button id="game-start-btn" type="button">게임 시작</button>
+        <button id="game-ready-btn" type="button" data-ready="false">게임 준비</button>
+        
         <input id="chat-input" placeholder="메시지를 입력하세요 (@챗봇 내용)" autocomplete="off"/>
-        <button>전송</button>
+        <button>전송</button> 
     </form>
 
 
@@ -468,7 +485,7 @@
                 updateBottomButtons(false); 
                 hideAllModals(); 
                 
-                chatForm.style.display = 'none'; // 🚩 로비 상태일 때 폼 숨기기
+                chatForm.style.display = 'none'; // 로비 상태일 때 폼 숨기기
             }
         });
 
@@ -570,7 +587,7 @@
                     
                     updateBottomButtons(response.isHost);
                     
-                    chatForm.style.display = 'flex'; // 🚩 방 입장 성공 시 폼 표시
+                    chatForm.style.display = 'flex'; // 방 입장 성공 시 폼 표시
 
                     if (response.isHost) {
                         addSystemMessage({ nickname: '[시스템]', text: '🎉 방장 권한이 부여되었습니다. 게임 시작 버튼이 표시됩니다.' });
@@ -593,7 +610,7 @@
             }
         };
 
-        // 5. 게임 시작 버튼 클릭 핸들러
+        // 5. 게임 시작 버튼 클릭 핸들러 (type="button"으로 변경되었으므로 이벤트 리스너는 그대로 유지)
         gameStartBtn.addEventListener('click', (e) => {
             e.preventDefault();
             if (isHost) {
@@ -603,7 +620,7 @@
             }
         });
 
-        // 6. 게임 준비 버튼 클릭 핸들러
+        // 6. 게임 준비 버튼 클릭 핸들러 (type="button"으로 변경되었으므로 이벤트 리스너는 그대로 유지)
         gameReadyBtn.addEventListener('click', (e) => {
             e.preventDefault();
             if (!isHost) {
@@ -611,7 +628,7 @@
             }
         });
         
-        // 7. 채팅 메시지 제출 처리
+        // 7. 채팅 메시지 제출 처리 (Enter 키 입력 시 이 함수가 실행됨)
         chatForm.addEventListener('submit', (e) => {
             e.preventDefault();
             const message = chatInput.value.trim();
