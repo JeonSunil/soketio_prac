@@ -126,19 +126,21 @@
         #game-start-btn, #game-ready-btn {
             padding: 10px 15px;
             border: none;
-            background-color: #28a745;
+            background-color: #28a745; /* 기본 초록색 */
             color: white;
             border-radius: 4px;
             cursor: pointer;
-            margin-right: 10px; /* 오른쪽 마진 유지 */
+            margin-right: 10px; 
             display: none; 
             flex-shrink: 0;
         }
+        
+        /* 🚩 [수정]: 준비 완료 상태일 때 색상을 진하게 변경 */
         #game-ready-btn.ready {
-            background-color: #ffc107; 
+            background-color: #1e7e34; /* 진한 초록색 */
         }
         
-        /* 🚩 채팅 폼 스타일 */
+        /* 채팅 폼 스타일 */
         #chat-form {
             position: fixed;
             bottom: 0;
@@ -154,13 +156,13 @@
             z-index: 10; 
         }
         
-        /* 🚩 [수정]: 게임 시작/준비 버튼을 가장 왼쪽 (order: 1)으로 */
+        /* 게임 시작/준비 버튼을 가장 왼쪽 (order: 1)으로 */
         #game-start-btn, #game-ready-btn {
             order: 1; 
             margin-right: 10px;
         }
 
-        /* 🚩 [수정]: 입력창은 중간 (order: 2)으로 */
+        /* 입력창은 중간 (order: 2)으로 */
         #chat-form > input {
             flex-grow: 1;
             padding: 10px;
@@ -170,8 +172,7 @@
             order: 2; 
         }
         
-        /* 🚩 [수정]: 전송 버튼은 가장 오른쪽 (order: 3)으로 */
-        /* 전송 버튼은 form 내부의 세 번째 버튼이 아니라, input 다음의 첫 번째 button 요소입니다. */
+        /* 전송 버튼은 가장 오른쪽 (order: 3)으로 */
         #chat-form > button:not(#game-start-btn):not(#game-ready-btn) {
             order: 3; 
             margin-right: 0; 
@@ -455,6 +456,7 @@
             gameReadyBtn.style.display = isHost ? 'none' : 'block';
             
             if (isHost === false) { 
+                // 방장이 아닐 때, 기본 상태로 초기화 (방장이 바뀌었거나 방에 처음 입장했을 때)
                 gameReadyBtn.textContent = '게임 준비';
                 gameReadyBtn.classList.remove('ready');
                 gameReadyBtn.setAttribute('data-ready', 'false');
@@ -625,6 +627,21 @@
             e.preventDefault();
             if (!isHost) {
                 socket.emit('toggle ready');
+                
+                // 🚩 [수정]: 버튼 상태를 로컬에서 즉시 변경
+                const isReady = gameReadyBtn.getAttribute('data-ready') === 'true';
+                
+                if (isReady) {
+                    // 준비 취소 상태로 변경
+                    gameReadyBtn.textContent = '게임 준비';
+                    gameReadyBtn.classList.remove('ready');
+                    gameReadyBtn.setAttribute('data-ready', 'false');
+                } else {
+                    // 준비 상태로 변경
+                    gameReadyBtn.textContent = '준비 취소';
+                    gameReadyBtn.classList.add('ready');
+                    gameReadyBtn.setAttribute('data-ready', 'true');
+                }
             }
         });
         
