@@ -135,7 +135,6 @@
             flex-shrink: 0;
         }
         
-        /* 🚩 [수정]: 준비 완료 상태일 때 색상을 진하게 변경 */
         #game-ready-btn.ready {
             background-color: #1e7e34; /* 진한 초록색 */
         }
@@ -336,6 +335,27 @@
             </form>
         </div>
     </div>
+    
+    <div id="stats-modal" class="modal">
+        <div class="modal-content">
+            <h4>캐릭터 능력치 설정</h4>
+            <form id="stats-form">
+                <p>
+                    <label for="char-name">캐릭터 이름:</label>
+                    <input id="char-name" type="text" value="용사" required style="width: 100%; padding: 8px; margin-bottom: 10px;" maxlength="10"/>
+                </p>
+                <p>
+                    <label for="char-hp">HP (10~100):</label>
+                    <input id="char-hp" type="number" min="10" max="100" value="50" required style="width: 100%; padding: 8px; margin-bottom: 10px;"/>
+                </p>
+                <p>
+                    <label for="char-attack">공격력 (1~20):</label>
+                    <input id="char-attack" type="number" min="1" max="20" value="10" required style="width: 100%; padding: 8px; margin-bottom: 10px;"/>
+                </p>
+                <button type="submit" class="btn" style="width: 100%;">설정 완료</button>
+            </form>
+        </div>
+    </div>
 
 
     <script src="/socket.io/socket.io.js"></script>
@@ -346,6 +366,7 @@
         let currentRoomName = null;
         let myNickname = null;
         let isHost = false; 
+        let isMyTurn = false; // 🚩 [NEW] 턴 기반 입력 관리 변수
         
         // HTML 요소 정의
         const roomTitle = document.getElementById('room-title');
@@ -374,10 +395,12 @@
         const createRoomModal = document.getElementById('create-room-modal');
         const passwordCheckModal = document.getElementById('password-check-modal');
         const nicknameModal = document.getElementById('nickname-modal');
+        const statsModal = document.getElementById('stats-modal'); // 🚩 [NEW] 능력치 모달
         
         const createRoomForm = document.getElementById('create-room-form');
         const passwordCheckForm = document.getElementById('password-check-form');
         const nicknameForm = document.getElementById('nickname-form');
+        const statsForm = document.getElementById('stats-form'); // 🚩 [NEW] 능력치 폼
         
         const usePasswordCheckbox = document.getElementById('use-password-checkbox');
         const roomPasswordInput = document.getElementById('room-password-input');
@@ -391,6 +414,10 @@
         const finalRoomName = document.getElementById('final-room-name');
         const finalNicknameInput = document.getElementById('final-nickname-input');
         
+        const charNameInput = document.getElementById('char-name'); // 🚩 [NEW] 능력치 입력 필드
+        const charHpInput = document.getElementById('char-hp');
+        const charAttackInput = document.getElementById('char-attack');
+
         let chatbotWaitingMessage = null; 
         let waitingAnimationInterval = null; 
 
@@ -431,6 +458,7 @@
             createRoomModal.style.display = 'none';
             passwordCheckModal.style.display = 'none';
             nicknameModal.style.display = 'none';
+            statsModal.style.display = 'none'; // 🚩 [NEW] 능력치 모달 닫기
         }
 
         function showNicknameModal(roomName, titleText) {
@@ -456,7 +484,6 @@
             gameReadyBtn.style.display = isHost ? 'none' : 'block';
             
             if (isHost === false) { 
-                // 방장이 아닐 때, 기본 상태로 초기화 (방장이 바뀌었거나 방에 처음 입장했을 때)
                 gameReadyBtn.textContent = '게임 준비';
                 gameReadyBtn.classList.remove('ready');
                 gameReadyBtn.setAttribute('data-ready', 'false');
@@ -467,11 +494,29 @@
             document.body.classList.add('game-active');
             addSystemMessage({ nickname: '[시스템]', text: message }, gameMessages);
             gameMessages.innerHTML = ''; 
+            toggleChatInput(false); // 🚩 초기에는 입력 비활성화
         }
 
         function exitGamePhase(message) {
             document.body.classList.remove('game-active');
             addSystemMessage({ nickname: '[시스템]', text: message }, messages);
+        }
+        
+        // 🚩 [NEW] 헬퍼 함수: 채팅 폼 활성화/비활성화 (턴 관리용)
+        function toggleChatInput(enabled) {
+            chatInput.disabled = !enabled;
+            // 전송 버튼
+            chatForm.querySelector('button:last-child').disabled = !enabled; 
+            isMyTurn = enabled;
+            
+            if (enabled) {
+                chatInput.focus();
+                chatInput.placeholder = '🔥 당신의 차례입니다. 행동을 입력하세요.';
+                chatForm.style.border = '2px solid #3f51b5'; // 내 턴임을 시각적으로 강조
+            } else {
+                chatInput.placeholder = '잠시 기다려주세요. 상대방의 차례입니다.';
+                chatForm.style.border = '1px solid #ddd';
+            }
         }
         
         // --- 이벤트 리스너 ---
@@ -601,18 +646,46 @@
             });
         });
         
+        // 🚩 [NEW] 6-1. 능력치 설정 폼 제출
+        statsForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            
+            const stats = {
+                name: charNameInput.value.trim(),
+                hp: parseInt(charHpInput.value, 10),
+                attack: parseInt(charAttackInput.value, 10)
+            };
+            
+            // 유효성 검사
+            if (stats.name.length < 1) { alert("캐릭터 이름을 입력해주세요."); return; }
+            if (stats.hp < 10 || stats.hp > 100) { alert("HP는 10에서 100 사이여야 합니다."); return; }
+            if (stats.attack < 1 || stats.attack > 20) { alert("공격력은 1에서 20 사이여야 합니다."); return; }
+            
+            // 서버에 능력치 설정 완료 보고
+            socket.emit('set stats and finish setup', stats, (response) => {
+                if (response.success) {
+                    hideAllModals();
+                    
+                    // 능력치 설정 완료 후, 게임 진행 화면으로 전환 (서버의 모든 유저 준비 대기)
+                    enterGamePhase('캐릭터 설정이 완료되었습니다. 모든 유저가 설정 완료할 때까지 대기 중...'); 
+                } else {
+                    alert('능력치 설정 오류: ' + response.reason);
+                }
+            });
+        });
+        
         // 모달 닫기 이벤트
         document.querySelectorAll('.close').forEach(span => {
             span.onclick = () => hideAllModals();
         });
         
         window.onclick = (event) => {
-            if (event.target === createRoomModal || event.target === passwordCheckModal || event.target === nicknameModal) {
+            if (event.target === createRoomModal || event.target === passwordCheckModal || event.target === nicknameModal || event.target === statsModal) {
                 hideAllModals();
             }
         };
 
-        // 5. 게임 시작 버튼 클릭 핸들러 (type="button"으로 변경되었으므로 이벤트 리스너는 그대로 유지)
+        // 5. 게임 시작 버튼 클릭 핸들러
         gameStartBtn.addEventListener('click', (e) => {
             e.preventDefault();
             if (isHost) {
@@ -622,22 +695,19 @@
             }
         });
 
-        // 6. 게임 준비 버튼 클릭 핸들러 (type="button"으로 변경되었으므로 이벤트 리스너는 그대로 유지)
+        // 6. 게임 준비 버튼 클릭 핸들러
         gameReadyBtn.addEventListener('click', (e) => {
             e.preventDefault();
             if (!isHost) {
                 socket.emit('toggle ready');
                 
-                // 🚩 [수정]: 버튼 상태를 로컬에서 즉시 변경
                 const isReady = gameReadyBtn.getAttribute('data-ready') === 'true';
                 
                 if (isReady) {
-                    // 준비 취소 상태로 변경
                     gameReadyBtn.textContent = '게임 준비';
                     gameReadyBtn.classList.remove('ready');
                     gameReadyBtn.setAttribute('data-ready', 'false');
                 } else {
-                    // 준비 상태로 변경
                     gameReadyBtn.textContent = '준비 취소';
                     gameReadyBtn.classList.add('ready');
                     gameReadyBtn.setAttribute('data-ready', 'true');
@@ -650,6 +720,11 @@
             e.preventDefault();
             const message = chatInput.value.trim();
             const now = Date.now();
+            
+            if (document.body.classList.contains('game-active') && !isMyTurn) {
+                alert("현재는 당신의 턴이 아닙니다. 상대방의 입력을 기다려주세요.");
+                return;
+            }
             
             if (message && currentRoomName && myNickname) {
                 socket.emit('chat message', message); 
@@ -665,7 +740,11 @@
                 `;
                 targetList.appendChild(userItem);
                 
-                
+                // 턴제 게임 중, 챗봇 호출이 아닐 경우 즉시 입력 비활성화
+                if (document.body.classList.contains('game-active') && !message.startsWith('@챗봇')) {
+                     toggleChatInput(false); 
+                }
+
                 if (message.startsWith('@챗봇')) {
                     const waitingItem = document.createElement('li');
                     waitingItem.classList.add('chatbot-message'); 
@@ -764,6 +843,11 @@
                 } else if (!user.isHost) {
                      statusLabel = '<span class="ready-status" style="color:#dc3545;">[대기]</span>';
                 }
+                
+                // 🚩 [NEW] 능력치 설정 완료 상태 표시
+                if (user.stats) {
+                    statusLabel += ` <span style="font-size:0.8em; color:blue;">[설정 완료]</span>`;
+                }
 
                 item.innerHTML = `
                     <span style="font-weight: bold;">${user.nickname}</span>
@@ -778,11 +862,32 @@
             updateBottomButtons(newHostStatus);
         });
         
-        // 11. 게임 시작 이벤트 수신
+        // 11. 게임 시작 이벤트 수신 (수정됨)
         socket.on('game phase start', (data) => {
-            enterGamePhase(data.message);
+            hideAllModals(); 
+            // 🚩 능력치 설정 모달 표시
+            statsModal.style.display = 'block';
+            charNameInput.focus();
+            
+            addSystemMessage({ nickname: '[시스템]', text: data.message }, messages);
         });
-
+        
+        // 🚩 [NEW] 14. 턴 시작 알림 이벤트 수신
+        socket.on('turn start', (data) => {
+            // 게임 페이즈로 전환 (혹시 모를 경우를 대비)
+            if (!document.body.classList.contains('game-active')) {
+                enterGamePhase('게임이 시작되었습니다! 턴을 시작합니다.');
+            }
+            
+            addSystemMessage({ nickname: '[시스템]', text: data.message }, gameMessages);
+            
+            if (data.isMyTurn) {
+                toggleChatInput(true);
+            } else {
+                toggleChatInput(false);
+            }
+        });
+        
         // 12. 방 목록 업데이트
         socket.on('update room list', (roomList) => {
             roomListDiv.innerHTML = ''; 
