@@ -16,7 +16,6 @@
     "url": "https://github.com/JeonSunil/soketio_prac/issues"
   },
   "homepage": "https://github.com/JeonSunil/soketio_prac#readme",
-  "type": "module",
   "dependencies": {
     "@google/genai": "^0.15.0",
     "dotenv": "^17.2.3",
